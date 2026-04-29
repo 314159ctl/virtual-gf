@@ -1,0 +1,36 @@
+[project]
+name = "virtual-girlfriend"
+version = "2.0.0"
+description = "商用级虚拟女友 - AI 聊天伴侣"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "sqlalchemy[asyncio]>=2.0",
+    "asyncpg>=0.30",
+    "alembic>=1.14",
+    "pydantic>=2.10",
+    "pydantic-settings>=2.6",
+    "python-jose[cryptography]>=3.3",
+    "passlib[bcrypt]>=1.7",
+    "python-multipart>=0.0.18",
+    "openai>=1.0",
+    "httpx>=0.28",
+    "redis>=5.2",
+    "celery>=5.4",
+    "python-dotenv>=1.0",
+    "slowapi>=0.1",
+    "structlog>=24.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.28",
+    "ruff>=0.8",
+]
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
