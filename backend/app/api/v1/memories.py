@@ -2,6 +2,8 @@
 
 import uuid
 
+from pydantic import BaseModel
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +12,11 @@ from app.core.dependencies import get_current_user
 from app.db.session import get_db
 from app.models.memory import LongTermMemory
 from app.models.user import User
+
+
+class MemoryUpdate(BaseModel):
+    content: str | None = None
+    importance: int | None = None
 
 router = APIRouter()
 
@@ -68,6 +75,37 @@ async def create_memory(
     await db.flush()
     await db.refresh(memory)
 
+    return {
+        "id": str(memory.id),
+        "content": memory.content,
+        "importance": memory.importance,
+    }
+
+
+@router.patch("/{memory_id}")
+async def update_memory(
+    memory_id: uuid.UUID,
+    data: MemoryUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """编辑记忆内容或重要性"""
+    result = await db.execute(select(LongTermMemory).where(LongTermMemory.id == memory_id))
+    memory = result.scalar_one_or_none()
+    if not memory:
+        raise HTTPException(status_code=404, detail="记忆不存在")
+    if memory.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="无权修改")
+
+    if data.content is not None:
+        memory.content = data.content
+    if data.importance is not None:
+        if data.importance < 1 or data.importance > 5:
+            raise HTTPException(status_code=400, detail="重要性为 1-5")
+        memory.importance = data.importance
+
+    await db.flush()
+    await db.refresh(memory)
     return {
         "id": str(memory.id),
         "content": memory.content,

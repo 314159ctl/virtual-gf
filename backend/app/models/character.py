@@ -3,7 +3,7 @@
 import uuid
 
 from sqlalchemy import Boolean, ForeignKey, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, UUIDMixin, TimestampMixin
@@ -22,6 +22,7 @@ class Character(Base, UUIDMixin, TimestampMixin):
     is_template: Mapped[bool] = mapped_column(Boolean, default=False)
     is_public: Mapped[bool] = mapped_column(Boolean, default=False)
     tags: Mapped[str | None] = mapped_column(String(500))  # 逗号分隔标签
+    personality_profile: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     owner = relationship("User", back_populates="characters")
     conversations = relationship("Conversation", back_populates="character", lazy="dynamic")

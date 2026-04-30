@@ -1,57 +1,114 @@
-:root {
-  --color-primary: #ff6b9d;
-  --color-primary-light: #ff8db5;
-  --color-primary-dark: #e8557d;
-  --color-accent: #a78bfa;
-  --color-bg: #fdf2f7;
-  --color-surface: #ffffff;
-  --color-sidebar: #fff5f8;
-  --color-text: #2d1b25;
-  --color-text-secondary: #8c6b7a;
-  --color-text-muted: #b8a0ab;
-  --color-border: #f0dce4;
-  --color-success: #2ecc71;
-  --color-error: #e74c3c;
-  --color-warning: #f39c12;
-  --color-bubble-user: #ff6b9d;
-  --color-bubble-ai: #f8e8f0;
+/* ═══════════════════════════════════════
+   千恋万花 — 柚子社风格 Design Tokens
+   ═══════════════════════════════════════ */
 
-  --font-sans: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
+:root {
+  /* ── Palette · 樱花粉系 ── */
+  --color-primary: #FF7DAF;
+  --color-primary-light: #FFB8D4;
+  --color-primary-dark: #E0669A;
+  --color-accent: #C4A1FF;
+  --color-accent-light: #DFC8FF;
+  --color-gold: #FFD4A8;
+  --color-gold-light: #FFE8D0;
+
+  /* ── Backgrounds ── */
+  --color-bg: #FFF5F8;
+  --color-surface: #FFFFFF;
+  --color-surface-2: #FFF0F4;
+  --color-sidebar: #FFF8FA;
+  --color-sakura: #FFE8F0;
+  --color-sakura-light: #FFF0F5;
+
+  /* ── Text ── */
+  --color-text: #4A2535;
+  --color-text-secondary: #8B5A6B;
+  --color-text-muted: #C495A8;
+  --color-text-inverse: #FFFFFF;
+
+  /* ── Border ── */
+  --color-border: #F5D0DA;
+  --color-border-strong: #E8B0C0;
+
+  /* ── Bubbles ── */
+  --color-bubble-user: linear-gradient(135deg, #FF7DAF, #FFB8D4);
+  --color-bubble-user-solid: #FF7DAF;
+  --color-bubble-ai: #FFF5F7;
+  --color-bubble-ai-hover: #FFECF1;
+
+  /* ── States ── */
+  --color-success: #7EC8A0;
+  --color-error: #E8808A;
+  --color-warning: #F0C080;
+
+  /* ── Gradients ── */
+  --sakura-gradient: linear-gradient(180deg, #FFF5F8 0%, #FFE8F0 50%, #F5E0F0 100%);
+  --avatar-gradient-1: linear-gradient(135deg, #FF7DAF, #C4A1FF);
+  --avatar-gradient-2: linear-gradient(135deg, #FFB8D4, #FFD4A8);
+  --avatar-gradient-3: linear-gradient(135deg, #C4A1FF, #A8D8F0);
+  --header-gradient: linear-gradient(90deg, rgba(255,245,248,0.95), rgba(255,232,240,0.95));
+
+  /* ── Typography ── */
+  --font-heading: 'Varela Round', 'ZCOOL QingKe HuangYou', 'Noto Sans SC', sans-serif;
+  --font-body: 'Nunito Sans', 'Noto Sans SC', -apple-system, sans-serif;
+  --font-sans: 'Nunito Sans', 'Noto Sans SC', -apple-system, sans-serif;
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
   --text-base: 1rem;
   --text-lg: 1.125rem;
   --text-xl: 1.25rem;
   --text-2xl: 1.5rem;
+  --text-3xl: 2rem;
+  --text-4xl: 2.5rem;
 
-  --radius-xs: 6px;
-  --radius-sm: 10px;
-  --radius: 16px;
-  --radius-lg: 24px;
+  /* ── Radius · 圆润柔和 ── */
+  --radius-xs: 8px;
+  --radius-sm: 14px;
+  --radius: 20px;
+  --radius-lg: 28px;
+  --radius-xl: 36px;
+  --radius-full: 9999px;
 
-  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
-  --shadow: 0 2px 12px rgba(255,107,157,0.08);
-  --shadow-lg: 0 8px 32px rgba(255,107,157,0.12);
+  /* ── Shadows · 绯色柔影 ── */
+  --shadow-xs: 0 1px 2px rgba(255,125,175,0.06);
+  --shadow-sm: 0 2px 8px rgba(255,125,175,0.10);
+  --shadow: 0 4px 16px rgba(255,125,175,0.12);
+  --shadow-lg: 0 8px 32px rgba(255,125,175,0.14);
+  --shadow-xl: 0 16px 48px rgba(255,125,175,0.16);
+  --shadow-glow: 0 0 20px rgba(255,125,175,0.18);
+  --shadow-glow-lg: 0 0 40px rgba(255,125,175,0.22);
 
-  --ease-out: cubic-bezier(0.4, 0, 0.2, 1);
+  /* ── Easing · 柔软弹动 ── */
+  --ease-out: cubic-bezier(0.25, 0.8, 0.25, 1.2);
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
   --duration-fast: 150ms;
   --duration: 250ms;
-  --duration-slow: 400ms;
+  --duration-slow: 450ms;
 
-  --header-h: 64px;
-  --sidebar-w: 260px;
-  --input-h: 72px;
+  /* ── Layout ── */
+  --header-h: 56px;
+  --char-panel-w: 320px;
+  --input-h: 80px;
 }
 
+/* ── Dark Mode · 月夜樱色 ── */
 [data-theme="dark"] {
-  --color-bg: #1a1020;
-  --color-surface: #241830;
-  --color-sidebar: #1e1428;
-  --color-text: #e8dce8;
-  --color-text-secondary: #a898b0;
-  --color-text-muted: #786878;
-  --color-border: #3a2848;
-  --color-bubble-ai: #2a1a38;
-  --shadow: 0 2px 12px rgba(0,0,0,0.2);
-  --shadow-lg: 0 8px 32px rgba(0,0,0,0.3);
+  --color-bg: #1E1428;
+  --color-surface: #281E35;
+  --color-surface-2: #2A1E38;
+  --color-sidebar: #23182E;
+  --color-sakura: #2A1A38;
+  --color-sakura-light: #322240;
+  --color-text: #F0E4F0;
+  --color-text-secondary: #C0A8C0;
+  --color-text-muted: #8B7088;
+  --color-border: #3A2848;
+  --color-border-strong: #503860;
+  --color-bubble-ai: #2A1A38;
+  --color-bubble-ai-hover: #322240;
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.2);
+  --shadow: 0 4px 16px rgba(0,0,0,0.3);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.4);
+  --shadow-glow: 0 0 20px rgba(196,161,255,0.12);
 }

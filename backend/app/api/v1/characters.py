@@ -1,16 +1,27 @@
 """角色 CRUD API"""
 
 import uuid
+from io import BytesIO
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status
 from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_current_user, get_optional_user
 from app.db.session import get_db
 from app.models.character import Character
+from app.models.character_document import CharacterDocument
 from app.models.user import User
-from app.schemas.character import CharacterCreate, CharacterOut, CharacterUpdate
+from app.schemas.character import (
+    CharacterCreate, CharacterOut, CharacterUpdate,
+    CharacterGenerateRequest, CharacterGenerateResponse,
+    CharacterDocumentOut,
+)
+from app.services.ai_engine import EnhancedAIEngine
+
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+ALLOWED_TYPES = {"text/plain", "text/markdown", "application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"}
+ALLOWED_EXTENSIONS = {".txt", ".md", ".pdf", ".docx"}
 
 router = APIRouter()
 
@@ -33,6 +44,17 @@ DEFAULT_CHARACTER_PROMPT = """# 角色设定
 - 偶尔撒娇要抱抱
 - 回复长度适中，不会太长
 """
+
+
+@router.post("/generate", response_model=CharacterGenerateResponse)
+async def generate_character(
+    data: CharacterGenerateRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """AI 一键生成角色人格"""
+    engine = EnhancedAIEngine()
+    profile = await engine.generate_personality_profile(data.user_description)
+    return CharacterGenerateResponse(personality_profile=profile)
 
 
 @router.get("", response_model=list[CharacterOut])
@@ -83,6 +105,7 @@ async def create_character(
         avatar_url=data.avatar_url,
         is_public=data.is_public,
         tags=data.tags,
+        personality_profile=data.personality_profile,
     )
     db.add(char)
     await db.flush()
@@ -145,4 +168,117 @@ async def delete_character(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="不能删除系统模板角色")
 
     await db.delete(char)
+    await db.flush()
+
+
+# ── 角色知识库文档管理 ──
+
+
+def _extract_text(filename: str, content: bytes) -> str:
+    """根据文件类型提取文本"""
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+
+    if ext in ("txt", "md"):
+        return content.decode("utf-8", errors="replace")
+
+    if ext == "pdf":
+        try:
+            from PyPDF2 import PdfReader
+            reader = PdfReader(BytesIO(content))
+            parts = []
+            for page in reader.pages:
+                text = page.extract_text()
+                if text:
+                    parts.append(text)
+            return "\n".join(parts)
+        except Exception:
+            return ""
+
+    if ext == "docx":
+        try:
+            from docx import Document
+            doc = Document(BytesIO(content))
+            return "\n".join(p.text for p in doc.paragraphs if p.text)
+        except Exception:
+            return ""
+
+    return ""
+
+
+@router.get("/{character_id}/documents", response_model=list[CharacterDocumentOut])
+async def list_documents(
+    character_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(CharacterDocument)
+        .where(CharacterDocument.character_id == character_id)
+        .order_by(CharacterDocument.created_at.desc())
+    )
+    return list(result.scalars().all())
+
+
+@router.post("/{character_id}/documents", response_model=CharacterDocumentOut, status_code=status.HTTP_201_CREATED)
+async def upload_document(
+    character_id: uuid.UUID,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    char_result = await db.execute(select(Character).where(Character.id == character_id))
+    char = char_result.scalar_one_or_none()
+    if not char:
+        raise HTTPException(status_code=404, detail="角色不存在")
+    if char.user_id != current_user.id and not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="无权操作")
+
+    filename = file.filename or ""
+    ext = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"不支持的文件类型: {ext}，仅支持 {', '.join(ALLOWED_EXTENSIONS)}")
+
+    content = await file.read()
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail=f"文件大小超过上限 ({MAX_FILE_SIZE // 1024 // 1024}MB)")
+
+    content_type = file.content_type or "application/octet-stream"
+    text = _extract_text(file.filename or "untitled", content)
+    if not text.strip():
+        raise HTTPException(status_code=400, detail="无法从文件中提取文字内容")
+
+    doc = CharacterDocument(
+        character_id=character_id,
+        filename=file.filename or "untitled",
+        content_type=content_type,
+        file_size=len(content),
+        content_text=text,
+        chunk_count=1,
+    )
+    db.add(doc)
+    await db.flush()
+    await db.refresh(doc)
+    return doc
+
+
+@router.delete("/{character_id}/documents/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_document(
+    character_id: uuid.UUID,
+    document_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(select(CharacterDocument).where(CharacterDocument.id == document_id))
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="文档不存在")
+    if str(doc.character_id) != str(character_id):
+        raise HTTPException(status_code=400, detail="文档不属于该角色")
+
+    char_result = await db.execute(select(Character).where(Character.id == character_id))
+    char = char_result.scalar_one_or_none()
+    if char and char.user_id != current_user.id and not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="无权操作")
+
+    await db.delete(doc)
     await db.flush()

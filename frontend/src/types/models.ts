@@ -9,6 +9,26 @@ export interface User {
   created_at: string
 }
 
+export interface ExpressionStyle {
+  confirm?: string[]
+  apologize?: string[]
+  thanks?: string[]
+  pet_names?: string[]
+  emoji?: string[]
+}
+
+export interface PersonalityProfile {
+  task?: string
+  appearance?: string
+  background?: string
+  personality?: string
+  speaking_style?: string
+  expression_style?: ExpressionStyle
+  preferences?: string
+  output_examples?: string
+  behavioral_rules?: string
+}
+
 export interface Character {
   id: string
   name: string
@@ -18,6 +38,7 @@ export interface Character {
   is_template: boolean
   is_public: boolean
   tags: string | null
+  personality_profile: PersonalityProfile | null
   created_at: string
   updated_at: string
 }
@@ -39,6 +60,16 @@ export interface Conversation {
   message_count: number
   created_at: string
   updated_at: string
+}
+
+export interface CharacterDocument {
+  id: string
+  character_id: string
+  filename: string
+  content_type: string
+  file_size: number
+  chunk_count: number
+  created_at: string
 }
 
 export interface Memory {

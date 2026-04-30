@@ -4,54 +4,135 @@ defineProps<{
   content: string
   time?: string
   avatarName?: string
+  contentType?: string
+  metadata?: Record<string, any> | null
 }>()
 </script>
 
 <template>
   <div class="message" :class="role">
-    <div class="msg-avatar">{{ role === 'user' ? '🙂' : (avatarName || '?') }}</div>
+    <div class="msg-avatar" :class="role" v-if="role === 'assistant'">
+      {{ avatarName || '?' }}
+    </div>
     <div class="msg-content">
-      <div class="msg-bubble">{{ content }}</div>
-      <div class="msg-time" v-if="time">{{ time }}</div>
+      <div class="msg-bubble" :class="role">
+        <img
+          v-if="contentType === 'image' && metadata?.image_base64"
+          :src="metadata.image_base64"
+          class="msg-image"
+          alt="uploaded"
+        />
+        <span v-if="content && content !== '[图片]'">{{ content }}</span>
+      </div>
+      <div class="msg-meta" v-if="time" :class="role">
+        <span class="msg-time">{{ time }}</span>
+      </div>
+    </div>
+    <div class="msg-avatar user-avatar" v-if="role === 'user'">
+      我
     </div>
   </div>
 </template>
 
 <style scoped>
 .message {
-  display: flex; gap: 10px; max-width: 72%;
-  animation: fadeInUp 0.3s var(--ease-out);
+  display: flex;
+  gap: 10px;
+  max-width: 75%;
+  animation: msgIn 0.35s var(--ease-bounce);
 }
-.message.user { align-self: flex-end; flex-direction: row-reverse; }
-.message.assistant { align-self: flex-start; }
+.message.user {
+  align-self: flex-end;
+  flex-direction: row-reverse;
+}
+.message.assistant {
+  align-self: flex-start;
+}
+
+/* ── Avatar ── */
 .msg-avatar {
-  width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 16px; color: #fff; margin-top: 2px;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: var(--font-heading);
+  color: #fff;
+  margin-top: 2px;
+  box-shadow: var(--shadow-xs);
 }
-.message.user .msg-avatar { background: linear-gradient(135deg, #667eea, #764ba2); }
-.message.assistant .msg-avatar { background: linear-gradient(135deg, var(--color-primary), var(--color-accent)); }
+.msg-avatar.assistant {
+  background: var(--avatar-gradient-1);
+}
+.user-avatar {
+  background: var(--avatar-gradient-2);
+  font-size: 12px;
+}
+
+/* ── Bubble ── */
 .msg-bubble {
-  padding: 12px 18px; border-radius: 20px;
-  font-size: 15px; line-height: 1.6; word-break: break-word;
+  padding: 12px 18px;
+  border-radius: var(--radius);
+  font-size: 15px;
+  line-height: 1.7;
+  word-break: break-word;
+  font-family: var(--font-body);
+  transition: transform var(--duration-fast) var(--ease-smooth);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
-.message.user .msg-bubble {
-  background: var(--color-bubble-user); color: #fff;
-  border-bottom-right-radius: 6px;
+.msg-bubble.user {
+  background: var(--color-bubble-user-solid);
+  color: #fff;
+  border-bottom-right-radius: var(--radius-xs);
+  box-shadow: 0 2px 8px rgba(255,125,175,0.18);
 }
-.message.assistant .msg-bubble {
-  background: var(--color-bubble-ai); color: var(--color-text);
-  border-bottom-left-radius: 6px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+.msg-bubble.user:hover {
+  transform: translateY(-1px);
+}
+.msg-bubble.assistant {
+  background: var(--color-bubble-ai);
+  color: var(--color-text);
+  border-bottom-left-radius: var(--radius-xs);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+  border: 1px solid rgba(255,125,175,0.06);
+}
+.msg-bubble.assistant:hover {
+  background: var(--color-bubble-ai-hover);
+}
+
+/* ── Image ── */
+.msg-image {
+  max-width: 240px;
+  max-height: 200px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+}
+
+/* ── Meta ── */
+.msg-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 3px;
+  padding: 0 6px;
+}
+.msg-meta.user {
+  justify-content: flex-end;
 }
 .msg-time {
-  font-size: 10px; color: var(--color-text-muted);
-  margin-top: 2px; padding: 0 4px;
+  font-size: 10px;
+  font-family: var(--font-body);
+  color: var(--color-text-muted);
 }
-.message.user .msg-time { text-align: right; color: rgba(255,255,255,0.7); }
 
-@keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
+@keyframes msgIn {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 </style>

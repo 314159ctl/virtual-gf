@@ -10,8 +10,7 @@ defineProps<{
     <div class="msg-avatar">{{ avatarName || '?' }}</div>
     <div class="msg-content">
       <div class="msg-bubble">
-        {{ content }}
-        <span class="cursor">|</span>
+        {{ content }}<span class="cursor">|</span>
       </div>
     </div>
   </div>
@@ -19,21 +18,40 @@ defineProps<{
 
 <style scoped>
 .message {
-  display: flex; gap: 10px; max-width: 72%;
+  display: flex;
+  gap: 10px;
+  max-width: 72%;
   align-self: flex-start;
+  animation: msgIn 0.3s var(--ease-bounce);
 }
 .msg-avatar {
-  width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 16px; color: #fff; margin-top: 2px;
-  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 700;
+  font-family: var(--font-heading);
+  color: #fff;
+  margin-top: 2px;
+  background: var(--avatar-gradient-1);
+  box-shadow: var(--shadow-xs);
 }
 .msg-bubble {
-  padding: 12px 18px; border-radius: 20px;
-  border-bottom-left-radius: 6px;
-  background: var(--color-bubble-ai); color: var(--color-text);
-  font-size: 15px; line-height: 1.6; word-break: break-word;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  padding: 12px 18px;
+  border-radius: var(--radius);
+  border-bottom-left-radius: var(--radius-xs);
+  background: var(--color-bubble-ai);
+  color: var(--color-text);
+  font-size: 15px;
+  line-height: 1.7;
+  word-break: break-word;
+  font-family: var(--font-body);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+  border: 1px solid rgba(255,125,175,0.06);
 }
 .cursor {
   display: inline-block;
@@ -43,5 +61,9 @@ defineProps<{
 }
 @keyframes blink {
   50% { opacity: 0; }
+}
+@keyframes msgIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 </style>

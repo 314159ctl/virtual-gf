@@ -1,251 +1,246 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, watch, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useChatStore } from '@/stores/chat'
 import { useAuthStore } from '@/stores/auth'
-import Sidebar from '@/components/layout/Sidebar.vue'
+import { useAutoScroll } from '@/composables/useAutoScroll'
+import TopBar from '@/components/layout/TopBar.vue'
 import MessageBubble from '@/components/chat/MessageBubble.vue'
 import StreamingBubble from '@/components/chat/StreamingBubble.vue'
 import TypingIndicator from '@/components/chat/TypingIndicator.vue'
 import ChatInput from '@/components/input/ChatInput.vue'
-import BaseModal from '@/components/shared/BaseModal.vue'
+import MemoryPanel from '@/components/chat/MemoryPanel.vue'
+import EmotionBadge from '@/components/chat/EmotionBadge.vue'
+import { Brain } from 'lucide-vue-next'
 
+const props = defineProps<{ characterId: string }>()
+
+const router = useRouter()
 const chat = useChatStore()
 const auth = useAuthStore()
 const { currentCharacter, messages, isStreaming, streamingContent } = storeToRefs(chat)
 
-const showSettings = ref(false)
-const showCharModal = ref(false)
-const showPainting = ref(false)
-const paintingPrompt = ref('')
-const paintingUrl = ref('')
-const paintingLoading = ref(false)
-const sidebarOpen = ref(false)
+const displayMessages = computed(() =>
+  messages.value.filter((m): m is typeof m & { role: 'user' | 'assistant' } =>
+    m.role === 'user' || m.role === 'assistant'
+  )
+)
 
-// Settings form
-const settingApiKey = ref('')
-const settingBaseUrl = ref('https://api.deepseek.com')
-const settingModel = ref('deepseek-chat')
+const messageContainer = ref<HTMLElement | null>(null)
+const { onNewContent, checkScrollPosition } = useAutoScroll(messageContainer)
+
+const loading = ref(true)
+const loadError = ref('')
+const showMemory = ref(false)
 
 onMounted(async () => {
   await auth.fetchUser()
-  chat.connectWebSocket()
-  await chat.loadCharacters()
+  try {
+    await chat.selectCharacter(props.characterId)
+  } catch (e: any) {
+    loadError.value = e?.response?.data?.detail || '加载角色失败'
+  } finally {
+    loading.value = false
+  }
 })
+
+watch(
+  () => [messages.value.length, streamingContent.value],
+  () => onNewContent(),
+)
 
 function onSend(text: string, image: string | null) {
   chat.sendMessage(text, image)
 }
 
-async function onGeneratePaint() {
-  if (!paintingPrompt.value.trim()) return
-  paintingLoading.value = true
-  try {
-    const { default: api } = await import('@/utils/http')
-    const res = await api.post('/images/generate', {
-      prompt: paintingPrompt.value,
-    })
-    paintingUrl.value = res.data.url
-  } catch (e: any) {
-    console.error(e)
-  } finally {
-    paintingLoading.value = false
-  }
+function goBack() {
+  router.push({ name: 'home' })
+}
+
+function logout() {
+  auth.logout()
+  router.push({ name: 'login' })
 }
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 }
+
+function formatDate() {
+  const d = new Date()
+  const weekdays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六']
+  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${weekdays[d.getDay()]}`
+}
 </script>
 
 <template>
-  <div class="app-shell">
-    <Sidebar
-      @new-character="showCharModal = true"
-      @open-settings="showSettings = true"
-      @open-painting="showPainting = true"
-    />
+  <div class="chat-view">
+    <TopBar
+      :title="currentCharacter?.name"
+      :show-back="true"
+      :username="auth.user?.username"
+      @back="goBack"
+      @logout="logout"
+    >
+      <template #actions>
+        <button class="memory-btn" @click="showMemory = true" title="记忆管理">
+          <Brain :size="18" />
+        </button>
+      </template>
+    </TopBar>
 
-    <main class="main-panel">
-      <!-- Mobile hamburger -->
-      <header class="chat-header" v-if="currentCharacter">
-        <button class="hamburger" @click="sidebarOpen = !sidebarOpen">☰</button>
-        <div class="header-avatar">{{ currentCharacter.name[0] }}</div>
-        <div class="header-info">
-          <div class="header-name">{{ currentCharacter.name }}</div>
-          <div class="header-desc">{{ currentCharacter.description }}</div>
-        </div>
-      </header>
+    <!-- Loading -->
+    <div v-if="loading" class="chat-status">
+      <div class="status-spinner" />
+      <span>正在加载...</span>
+    </div>
 
-      <!-- Messages -->
-      <div class="chat-messages" ref="msgContainer">
-        <div v-if="messages.length === 0 && !isStreaming" class="welcome">
-          <div class="welcome-avatar">{{ currentCharacter?.name?.[0] || '?' }}</div>
-          <h2>{{ currentCharacter?.name || '虚拟女友' }}</h2>
-          <p>{{ currentCharacter?.description || '发一条消息开始聊天吧~' }}</p>
-        </div>
+    <!-- Error -->
+    <div v-else-if="loadError" class="chat-status">
+      <span class="status-error">{{ loadError }}</span>
+      <button class="status-btn" @click="goBack">返回首页</button>
+    </div>
 
-        <template v-for="m in messages" :key="m.id">
-          <MessageBubble
-            :role="m.role as 'user' | 'assistant'"
-            :content="m.content"
-            :time="formatTime(m.created_at)"
-            :avatar-name="currentCharacter?.name?.[0]"
-          />
-        </template>
+    <!-- Chat -->
+    <template v-else>
+      <main
+        class="chat-messages"
+        ref="messageContainer"
+        @scroll="checkScrollPosition"
+      >
+        <div class="date-divider">{{ formatDate() }}</div>
+
+        <MessageBubble
+          v-for="m in displayMessages"
+          :key="m.id"
+          :role="m.role"
+          :content="m.content"
+          :time="formatTime(m.created_at)"
+          :content-type="m.content_type"
+          :metadata="m.metadata"
+          :avatar-name="m.role === 'assistant' ? currentCharacter?.name?.[0] : undefined"
+        />
 
         <StreamingBubble
           v-if="isStreaming && streamingContent"
           :content="streamingContent"
           :avatar-name="currentCharacter?.name?.[0]"
         />
+
         <TypingIndicator v-if="isStreaming && !streamingContent" />
+      </main>
+
+      <div class="input-area">
+        <EmotionBadge />
+        <ChatInput @send="onSend" />
       </div>
+    </template>
 
-      <ChatInput @send="onSend" />
-    </main>
+    <MemoryPanel :show="showMemory" @close="showMemory = false" />
   </div>
-
-  <!-- Settings Modal -->
-  <BaseModal :show="showSettings" title="⚙️ 设置" @close="showSettings = false">
-    <div class="form-group">
-      <label>DeepSeek API Key</label>
-      <input v-model="settingApiKey" type="password" class="form-input" placeholder="sk-..." />
-    </div>
-    <div class="form-group">
-      <label>Base URL</label>
-      <input v-model="settingBaseUrl" type="text" class="form-input" />
-    </div>
-    <div class="form-group">
-      <label>模型</label>
-      <input v-model="settingModel" type="text" class="form-input" />
-    </div>
-    <template #footer>
-      <button class="btn btn-outline" @click="showSettings = false">取消</button>
-      <button class="btn btn-primary" @click="showSettings = false">保存</button>
-    </template>
-  </BaseModal>
-
-  <!-- Character Modal -->
-  <BaseModal :show="showCharModal" title="创建角色" @close="showCharModal = false">
-    <div class="form-group">
-      <label>角色名</label>
-      <input type="text" class="form-input" placeholder="给角色起个名字" />
-    </div>
-    <div class="form-group">
-      <label>描述</label>
-      <input type="text" class="form-input" placeholder="一句话描述" />
-    </div>
-    <div class="form-group">
-      <label>角色设定</label>
-      <textarea class="form-input" rows="10" placeholder="详细的角色设定..."></textarea>
-    </div>
-    <template #footer>
-      <button class="btn btn-outline" @click="showCharModal = false">取消</button>
-      <button class="btn btn-primary" @click="showCharModal = false">保存</button>
-    </template>
-  </BaseModal>
-
-  <!-- Painting Modal -->
-  <BaseModal :show="showPainting" title="🖼️ AI 绘画" @close="showPainting = false">
-    <div class="form-group">
-      <label>图片描述</label>
-      <textarea v-model="paintingPrompt" class="form-input" rows="3" placeholder="描述你想要的画面..."></textarea>
-    </div>
-    <div v-if="paintingLoading" class="painting-loading">
-      <div class="spinner" />
-      <p>AI 正在创作中...</p>
-    </div>
-    <img v-if="paintingUrl" :src="paintingUrl" class="painting-result" alt="AI 生成" />
-    <template #footer>
-      <button class="btn btn-outline" @click="showPainting = false">关闭</button>
-      <button class="btn btn-primary" @click="onGeneratePaint" :disabled="paintingLoading">生成</button>
-    </template>
-  </BaseModal>
 </template>
 
 <style scoped>
-.app-shell {
-  display: flex; height: 100%;
+.chat-view {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg);
 }
-
-.main-panel {
-  flex: 1; height: 100%; display: flex; flex-direction: column;
-  min-width: 0; background: var(--color-bg);
-}
-
-.chat-header {
-  height: var(--header-h); flex-shrink: 0;
-  display: flex; align-items: center; gap: 12px;
-  padding: 0 20px;
-  background: var(--color-surface); border-bottom: 1px solid var(--color-border);
-}
-.hamburger { display: none; font-size: 20px; padding: 8px; color: var(--color-text-secondary); }
-.header-avatar {
-  width: 40px; height: 40px; border-radius: 50%;
-  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
-  display: flex; align-items: center; justify-content: center;
-  color: #fff; font-size: 20px; flex-shrink: 0;
-}
-.header-info { flex: 1; min-width: 0; }
-.header-name { font-size: 16px; font-weight: 600; }
-.header-desc { font-size: 12px; color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .chat-messages {
-  flex: 1; overflow-y: auto; padding: 20px 40px;
-  display: flex; flex-direction: column; gap: 4px;
-  scroll-behavior: smooth;
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 24px;
 }
 
-.welcome {
-  text-align: center; padding: 80px 20px;
-  animation: fadeInUp 0.6s var(--ease-out);
-}
-.welcome-avatar {
-  width: 96px; height: 96px; border-radius: 50%;
-  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
-  margin: 0 auto 16px; display: flex; align-items: center; justify-content: center;
-  font-size: 48px; color: #fff;
-  box-shadow: 0 8px 32px rgba(255,107,157,0.2);
-}
-.welcome h2 { font-size: 24px; margin-bottom: 4px; }
-.welcome p { color: var(--color-text-secondary); }
-
-/* Form */
-.form-group { margin-bottom: 14px; }
-.form-group label {
-  display: block; font-size: 13px; font-weight: 600;
-  color: var(--color-text-secondary); margin-bottom: 6px;
-}
-.form-input {
-  width: 100%; padding: 10px 14px; border: 1.5px solid var(--color-border);
-  border-radius: var(--radius-xs); font-size: 14px;
-  font-family: inherit; outline: none; transition: border-color var(--duration-fast);
-  background: var(--color-bg); color: var(--color-text);
-}
-.form-input:focus {
-  border-color: var(--color-primary-light);
-  box-shadow: 0 0 0 3px rgba(255,107,157,0.06);
+.date-divider {
+  text-align: center;
+  font-size: var(--text-xs);
+  font-family: var(--font-body);
+  color: var(--color-text-muted);
+  padding: 8px 0;
+  margin-bottom: 4px;
 }
 
-/* Painting */
-.painting-loading { text-align: center; padding: 24px; }
-.spinner {
-  width: 36px; height: 36px; border: 3px solid var(--color-border);
-  border-top-color: var(--color-primary); border-radius: 50%;
-  animation: spin 0.8s linear infinite; margin: 0 auto;
+/* ── Status (loading / error) ── */
+.chat-status {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
 }
-@keyframes spin { to { transform: rotate(360deg); } }
-.painting-loading p { color: var(--color-text-muted); margin-top: 8px; font-size: 14px; }
-.painting-result { width: 100%; border-radius: var(--radius-sm); margin-top: 8px; }
 
-@keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
+.status-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.status-error {
+  color: var(--color-error);
+}
+
+.status-btn {
+  padding: 8px 24px;
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-smooth);
+}
+.status-btn:hover {
+  background: var(--color-primary-dark);
+  box-shadow: var(--shadow-sm);
+}
+
+.memory-btn {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-smooth);
+}
+.memory-btn:hover {
+  background: var(--color-sakura);
+  color: var(--color-accent);
+}
+
+.input-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 20px 8px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 @media (max-width: 768px) {
-  .chat-messages { padding: 12px 16px; }
-  .hamburger { display: block; }
+  .chat-messages {
+    padding: 16px;
+    gap: 12px;
+  }
 }
 </style>

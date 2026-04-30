@@ -14,6 +14,8 @@ html, body {
 
 #app { height: 100%; }
 
+img { max-width: 100%; display: block; }
+
 button {
   font-family: inherit;
   cursor: pointer;
@@ -40,10 +42,15 @@ a { color: inherit; text-decoration: none; }
   transition: all var(--duration) var(--ease-out);
 }
 .btn-primary { background: var(--color-primary); color: #fff; }
-.btn-primary:hover { background: var(--color-primary-dark); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(255,107,157,0.3); }
+.btn-primary:hover { background: var(--color-primary-dark); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(255,125,175,0.3); }
 .btn-outline { background: transparent; border: 1.5px solid var(--color-border); color: var(--color-text-secondary); }
 .btn-outline:hover { border-color: var(--color-primary); color: var(--color-primary); }
 .btn-sm { padding: 6px 14px; font-size: 13px; border-radius: var(--radius-xs); }
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+}
 
 /* Transitions */
 .fade-enter-active, .fade-leave-active { transition: opacity var(--duration) var(--ease-out); }
@@ -54,3 +61,32 @@ a { color: inherit; text-decoration: none; }
 
 .page-enter-active, .page-leave-active { transition: opacity var(--duration-fast) var(--ease-out); }
 .page-enter-from, .page-leave-to { opacity: 0; }
+
+/* 樱花飘落动画 */
+@keyframes petalFall {
+  0%   { transform: translateY(-10vh) rotate(0deg) translateX(0); opacity: 0; }
+  10%  { opacity: 0.3; }
+  90%  { opacity: 0.15; }
+  100% { transform: translateY(105vh) rotate(720deg) translateX(60px); opacity: 0; }
+}
+
+/* 浮动动画 */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
+}
+
+/* 心跳动画 */
+@keyframes heartbeat {
+  0%, 100% { transform: scale(1); }
+  14%      { transform: scale(1.1); }
+  28%      { transform: scale(1); }
+  42%      { transform: scale(1.1); }
+  70%      { transform: scale(1); }
+}
+
+/* 呼吸光晕 */
+@keyframes breathe {
+  0%, 100% { opacity: 0.4; }
+  50%      { opacity: 0.8; }
+}
