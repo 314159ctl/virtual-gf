@@ -1,0 +1,8 @@
+interface:
+  display_name: "Taste"
+  short_description: "Connect agents to sources, inks, and integrations."
+  brand_color: "#1E6F5C"
+  default_prompt: "Use $taste to explore what this agent can connect, query the best operating path, or publish reusable knowledge back into Taste."
+
+policy:
+  allow_implicit_invocation: true

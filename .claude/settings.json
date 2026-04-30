@@ -1,0 +1,10 @@
+{
+  "extraKnownMarketplaces": {
+    "claude-mem-local": {
+      "source": {
+        "source": "directory",
+        "path": "C:\\nodejs\\node_modules\\claude-mem\\plugin"
+      }
+    }
+  }
+}
