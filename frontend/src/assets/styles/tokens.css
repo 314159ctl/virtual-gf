@@ -70,13 +70,9 @@
   --radius-full: 9999px;
 
   /* ── Shadows · 绯色柔影 ── */
-  --shadow-xs: 0 1px 2px rgba(255,125,175,0.06);
-  --shadow-sm: 0 2px 8px rgba(255,125,175,0.10);
-  --shadow: 0 4px 16px rgba(255,125,175,0.12);
-  --shadow-lg: 0 8px 32px rgba(255,125,175,0.14);
-  --shadow-xl: 0 16px 48px rgba(255,125,175,0.16);
-  --shadow-glow: 0 0 20px rgba(255,125,175,0.18);
-  --shadow-glow-lg: 0 0 40px rgba(255,125,175,0.22);
+  --shadow-sm: 0 1px 4px rgba(255,125,175,0.06);
+  --shadow-md: 0 2px 12px rgba(255,125,175,0.08);
+  --shadow-lg: 0 4px 24px rgba(255,125,175,0.12);
 
   /* ── Easing · 柔软弹动 ── */
   --ease-out: cubic-bezier(0.25, 0.8, 0.25, 1.2);
@@ -92,23 +88,3 @@
   --input-h: 80px;
 }
 
-/* ── Dark Mode · 月夜樱色 ── */
-[data-theme="dark"] {
-  --color-bg: #1E1428;
-  --color-surface: #281E35;
-  --color-surface-2: #2A1E38;
-  --color-sidebar: #23182E;
-  --color-sakura: #2A1A38;
-  --color-sakura-light: #322240;
-  --color-text: #F0E4F0;
-  --color-text-secondary: #C0A8C0;
-  --color-text-muted: #8B7088;
-  --color-border: #3A2848;
-  --color-border-strong: #503860;
-  --color-bubble-ai: #2A1A38;
-  --color-bubble-ai-hover: #322240;
-  --shadow-sm: 0 2px 8px rgba(0,0,0,0.2);
-  --shadow: 0 4px 16px rgba(0,0,0,0.3);
-  --shadow-lg: 0 8px 32px rgba(0,0,0,0.4);
-  --shadow-glow: 0 0 20px rgba(196,161,255,0.12);
-}

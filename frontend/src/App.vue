@@ -5,9 +5,7 @@ import { useAuthStore } from '@/stores/auth'
 const auth = useAuthStore()
 
 onMounted(async () => {
-  if (localStorage.getItem('access_token')) {
-    await auth.fetchUser()
-  }
+  await auth.initGuest()
 })
 </script>
 

@@ -128,8 +128,7 @@ export const useChatStore = defineStore('chat', () => {
     }
 
     if (!currentConversation.value) return
-    const token = localStorage.getItem('access_token')
-    if (!token) return
+    const token = localStorage.getItem('access_token') || 'guest'
 
     const convId = currentConversation.value.id
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'

@@ -4,7 +4,6 @@ import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { Plus } from 'lucide-vue-next'
 import { useChatStore } from '@/stores/chat'
-import { useAuthStore } from '@/stores/auth'
 import TopBar from '@/components/layout/TopBar.vue'
 import CharacterCard from '@/components/shared/CharacterCard.vue'
 import CreateCharacterForm from '@/components/shared/CreateCharacterForm.vue'
@@ -12,14 +11,12 @@ import BaseModal from '@/components/shared/BaseModal.vue'
 
 const router = useRouter()
 const chat = useChatStore()
-const auth = useAuthStore()
 const { characters } = storeToRefs(chat)
 
 const showCreateModal = ref(false)
 const creating = ref(false)
 
 onMounted(async () => {
-  await auth.fetchUser()
   await chat.loadCharacters()
 })
 
@@ -48,18 +45,11 @@ async function onCreateCharacter(data: { name: string; description: string; syst
   }
 }
 
-function logout() {
-  auth.logout()
-  router.push('/login')
-}
 </script>
 
 <template>
   <div class="home-view">
-    <TopBar
-      :username="auth.user?.username"
-      @logout="logout"
-    />
+    <TopBar />
 
     <div class="home-content">
       <div class="home-header">

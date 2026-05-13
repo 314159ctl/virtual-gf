@@ -27,13 +27,16 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 7
 
-    # TTS
-    tts_voice: str = "zh-CN-XiaoxiaoNeural"
-
     # App
     app_port: int = 8000
     debug: bool = False
     cors_origins: str = "http://localhost:5173"
+
+    # 视觉识图 (豆包 Seed-2.0 Pro)
+    vision_enabled: bool = True
+    vision_api_key: str = ""
+    vision_base_url: str = "https://ark.cn-beijing.volces.com/api/v3"
+    vision_model: str = "doubao-seed-2-0-pro"
 
     # 配额
     free_daily_messages: int = 50

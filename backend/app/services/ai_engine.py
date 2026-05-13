@@ -158,6 +158,32 @@ class EnhancedAIEngine:
             combined = combined[:max_chars].rsplit("。", 1)[0] + "。"
         return f"\n# 角色知识库（参考素材）\n\n你可以参考以下素材来丰富你的角色扮演：\n\n{combined}"
 
+    async def describe_image(self, image_base64: str) -> str:
+        """调用视觉模型描述图片，返回中文文字描述"""
+        import logging
+        logger = logging.getLogger(__name__)
+        try:
+            vision_client = AsyncOpenAI(
+                api_key=settings.vision_api_key,
+                base_url=settings.vision_base_url,
+            )
+            response = await vision_client.chat.completions.create(
+                model=settings.vision_model,
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}},
+                        {"type": "text", "text": "请用中文详细描述这张图片的内容。如果图片中有人物，描述其外貌、表情、穿着和场景。"},
+                    ]
+                }],
+                max_tokens=512,
+                temperature=0.3,
+            )
+            return response.choices[0].message.content or "[图片]"
+        except Exception as e:
+            logger.error(f"视觉识图失败: {e}")
+            return "[图片]"
+
     async def build_system_prompt(
         self,
         character_prompt: str,
@@ -215,6 +241,15 @@ class EnhancedAIEngine:
                 "\"哇真的吗！我也好开心~ [NEXT_MSG] 快跟我说说具体发生了什么？\"\n"
                 "注意：不要写序号，不要写\"消息1\"之类的标签，就直接写两条自然的消息内容。"
             )
+
+        # 图片分享规则
+        parts.append(
+            "\n# 图片分享\n"
+            "当对话场景适合分享照片时（用户要求看照片、分享心情、描述场景等），"
+            "你可以在回复中使用 [IMAGE:详细的图片描述] 来发送一张AI生成的图片。\n"
+            "每轮对话最多使用一次。不要在纯知识问答时使用。\n"
+            "示例：\"今天天气真好呀～ [IMAGE:阳光明媚的樱花树下，一个可爱的女孩微笑着挥手]\""
+        )
 
         return "\n\n".join(parts)
 
@@ -276,8 +311,11 @@ class EnhancedAIEngine:
                     delta = chunk.choices[0].delta
                     if delta and delta.content:
                         yield delta.content
-        except Exception as e:
-            yield f"\n\n[错误] {str(e)}"
+        except Exception:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.exception("AI 对话生成失败")
+            yield "\n\n[生成回复时出现错误，请稍后重试]"
 
     async def summarize_conversation(self, messages: list[dict]) -> str:
         """用 AI 总结对话历史，用于压缩上下文"""

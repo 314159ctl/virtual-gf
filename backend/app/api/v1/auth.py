@@ -12,6 +12,25 @@ from app.schemas.user import TokenResponse, UserLogin, UserOut, UserRegister
 router = APIRouter()
 
 
+@router.post("/guest", response_model=TokenResponse)
+async def guest_login(db: AsyncSession = Depends(get_db)):
+    """免注册 guest 登录，返回 JWT 令牌对"""
+    import uuid as _uuid
+    guest_id = str(_uuid.uuid4())[:8]
+    user = User(
+        email=f"guest_{guest_id}@guest.local",
+        username=f"访客{guest_id}",
+        password_hash=hash_password(_uuid.uuid4().hex),
+    )
+    db.add(user)
+    await db.flush()
+    await db.refresh(user)
+
+    access_token = create_access_token(str(user.id), "free")
+    refresh_token = create_refresh_token(str(user.id))
+    return TokenResponse(access_token=access_token, refresh_token=refresh_token)
+
+
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 async def register(data: UserRegister, db: AsyncSession = Depends(get_db)):
     """注册新用户"""

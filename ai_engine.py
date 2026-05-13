@@ -80,8 +80,8 @@ class AIEngine:
                     delta = chunk.choices[0].delta
                     if delta and delta.content:
                         yield delta.content
-        except Exception as e:
-            yield f"\n\n[错误] {str(e)}"
+        except Exception:
+            yield "\n\n[生成回复时出现错误，请稍后重试]"
 
     def chat_once(self, system_prompt: str, history: list,
                   user_message: str, image_data: str = None) -> str:
@@ -96,8 +96,8 @@ class AIEngine:
                 stream=False
             )
             return response.choices[0].message.content or ""
-        except Exception as e:
-            return f"[错误] {str(e)}"
+        except Exception:
+            return "[生成回复时出现错误，请稍后重试]"
 
     def generate_image(self, prompt: str, api_key: str = None,
                        base_url: str = None, model: str = None) -> Optional[str]:

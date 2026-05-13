@@ -1,11 +1,15 @@
 """FastAPI 应用入口"""
 
+import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -49,6 +53,18 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @app.get("/health")
+    def health():
+        return {"status": "ok"}
+
+    @app.exception_handler(Exception)
+    async def global_exception_handler(_request: Request, exc: Exception):
+        logger.error(f"Unhandled error: {exc}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "服务暂时不可用，请稍后再试"},
+        )
 
     # 注册 REST 路由
     from app.api.v1.router import api_router

@@ -6,13 +6,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_optional_user
 from app.db.session import get_db
 from app.models.conversation import Conversation
 from app.models.character import Character
 from app.models.message import Message
 from app.models.user import User
 
+GUEST_USER_ID = uuid.UUID("00000000-0000-0000-0000-000000000000")
 router = APIRouter()
 
 
@@ -20,10 +21,11 @@ router = APIRouter()
 async def list_conversations(
     character_id: uuid.UUID | None = Query(None),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_optional_user),
 ):
     """获取用户的会话列表"""
-    stmt = select(Conversation).where(Conversation.user_id == current_user.id)
+    uid = current_user.id if current_user else GUEST_USER_ID
+    stmt = select(Conversation).where(Conversation.user_id == uid)
     if character_id:
         stmt = stmt.where(Conversation.character_id == character_id)
     stmt = stmt.order_by(Conversation.updated_at.desc()).limit(50)
@@ -49,17 +51,17 @@ async def create_conversation(
     character_id: uuid.UUID,
     title: str | None = None,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_optional_user),
 ):
     """创建新会话"""
-    # 验证角色存在
     char_result = await db.execute(select(Character).where(Character.id == character_id))
     char = char_result.scalar_one_or_none()
     if not char:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="角色不存在")
 
+    uid = current_user.id if current_user else GUEST_USER_ID
     conv = Conversation(
-        user_id=current_user.id,
+        user_id=uid,
         character_id=character_id,
         title=title or f"与{char.name}的对话",
     )
@@ -79,20 +81,17 @@ async def create_conversation(
 async def get_messages(
     conversation_id: uuid.UUID,
     limit: int = Query(50, le=200),
-    before: uuid.UUID | None = Query(None),  # 游标分页
+    before: uuid.UUID | None = Query(None),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_optional_user),
 ):
     """获取会话消息（游标分页）"""
-    # 权限检查
     conv_result = await db.execute(
         select(Conversation).where(Conversation.id == conversation_id)
     )
     conv = conv_result.scalar_one_or_none()
     if not conv:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="会话不存在")
-    if conv.user_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问此会话")
 
     stmt = select(Message).where(Message.conversation_id == conversation_id)
     if before:
@@ -120,7 +119,7 @@ async def get_messages(
 async def delete_conversation(
     conversation_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_optional_user),
 ):
     """删除会话及其所有消息"""
     result = await db.execute(
@@ -129,8 +128,6 @@ async def delete_conversation(
     conv = result.scalar_one_or_none()
     if not conv:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="会话不存在")
-    if conv.user_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权删除此会话")
 
     await db.delete(conv)
     await db.flush()

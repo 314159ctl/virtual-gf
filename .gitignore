@@ -1,5 +1,7 @@
 # Environment
 .env
+.env.*
+!.env.example
 .venv/
 venv/
 __pycache__/
@@ -12,8 +14,10 @@ build/
 # Database
 *.db
 *.sqlite3
-data/conversations.db
-data/audio_cache/
+data/
+
+# Logs
+*.log
 
 # IDE
 .vscode/

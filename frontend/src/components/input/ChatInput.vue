@@ -222,7 +222,7 @@ function onKeydown(e: KeyboardEvent) {
 }
 .send-btn.ready:hover {
   transform: scale(1.06);
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-md);
 }
 .send-btn:disabled {
   cursor: not-allowed;

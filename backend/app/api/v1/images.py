@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.config import settings
-from app.core.dependencies import get_current_user, check_quota
+from app.core.dependencies import get_optional_user
 from app.schemas.chat import GenerateImageRequest
 from app.models.user import User
 
@@ -13,8 +13,7 @@ router = APIRouter()
 @router.post("/generate")
 async def generate_image(
     data: GenerateImageRequest,
-    current_user: User = Depends(get_current_user),
-    _quota=Depends(check_quota("image")),
+    current_user: User | None = Depends(get_optional_user),
 ):
     """生成 AI 图片"""
     if not settings.painting_enabled:

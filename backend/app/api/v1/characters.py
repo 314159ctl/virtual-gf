@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, 
 from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_current_user, get_optional_user
+from app.core.dependencies import get_optional_user
 from app.db.session import get_db
 from app.models.character import Character
 from app.models.character_document import CharacterDocument
@@ -49,7 +49,7 @@ DEFAULT_CHARACTER_PROMPT = """# 角色设定
 @router.post("/generate", response_model=CharacterGenerateResponse)
 async def generate_character(
     data: CharacterGenerateRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_optional_user),
 ):
     """AI 一键生成角色人格"""
     engine = EnhancedAIEngine()
@@ -94,11 +94,11 @@ async def list_characters(
 async def create_character(
     data: CharacterCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_optional_user),
 ):
     """创建新角色"""
     char = Character(
-        user_id=current_user.id,
+        user_id=current_user.id if current_user else None,
         name=data.name,
         description=data.description,
         system_prompt=data.system_prompt,
@@ -132,14 +132,14 @@ async def update_character(
     character_id: uuid.UUID,
     data: CharacterUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_optional_user),
 ):
     """更新角色"""
     result = await db.execute(select(Character).where(Character.id == character_id))
     char = result.scalar_one_or_none()
     if not char:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="角色不存在")
-    if char.user_id != current_user.id and not current_user.is_admin:
+    if char.user_id and current_user and char.user_id != current_user.id and not (current_user.is_admin if hasattr(current_user, 'is_admin') else False):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权修改此角色")
 
     update_data = data.model_dump(exclude_unset=True)
@@ -155,16 +155,16 @@ async def update_character(
 async def delete_character(
     character_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_optional_user),
 ):
     """删除角色"""
     result = await db.execute(select(Character).where(Character.id == character_id))
     char = result.scalar_one_or_none()
     if not char:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="角色不存在")
-    if char.user_id != current_user.id and not current_user.is_admin:
+    if char.user_id and current_user and char.user_id != current_user.id and not (current_user.is_admin if hasattr(current_user, 'is_admin') else False):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权删除此角色")
-    if char.is_template and not current_user.is_admin:
+    if char.is_template and current_user and not (current_user.is_admin if hasattr(current_user, 'is_admin') else False):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="不能删除系统模板角色")
 
     await db.delete(char)
@@ -209,8 +209,7 @@ def _extract_text(filename: str, content: bytes) -> str:
 async def list_documents(
     character_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
+    current_user: User | None = Depends(get_optional_user),
     result = await db.execute(
         select(CharacterDocument)
         .where(CharacterDocument.character_id == character_id)
@@ -224,13 +223,13 @@ async def upload_document(
     character_id: uuid.UUID,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_optional_user),
 ):
     char_result = await db.execute(select(Character).where(Character.id == character_id))
     char = char_result.scalar_one_or_none()
     if not char:
         raise HTTPException(status_code=404, detail="角色不存在")
-    if char.user_id != current_user.id and not current_user.is_admin:
+    if char.user_id and current_user and char.user_id != current_user.id and not (current_user.is_admin if hasattr(current_user, 'is_admin') else False):
         raise HTTPException(status_code=403, detail="无权操作")
 
     filename = file.filename or ""
@@ -266,7 +265,7 @@ async def delete_document(
     character_id: uuid.UUID,
     document_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_optional_user),
 ):
     result = await db.execute(select(CharacterDocument).where(CharacterDocument.id == document_id))
     doc = result.scalar_one_or_none()
@@ -277,7 +276,7 @@ async def delete_document(
 
     char_result = await db.execute(select(Character).where(Character.id == character_id))
     char = char_result.scalar_one_or_none()
-    if char and char.user_id != current_user.id and not current_user.is_admin:
+    if char and char.user_id and current_user and char.user_id != current_user.id and not (current_user.is_admin if hasattr(current_user, 'is_admin') else False):
         raise HTTPException(status_code=403, detail="无权操作")
 
     await db.delete(doc)

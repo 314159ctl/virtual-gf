@@ -5,9 +5,11 @@ import json
 import re
 import uuid
 import random
+import requests
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from app.db.session import AsyncSessionLocal
 from app.models.message import Message
@@ -15,6 +17,7 @@ from app.models.conversation import Conversation
 from app.models.character import Character
 from app.models.character_document import CharacterDocument
 from app.models.memory import LongTermMemory
+from app.core.config import settings
 from app.core.security import decode_token
 from app.services.ai_engine import EnhancedAIEngine
 
@@ -191,46 +194,66 @@ def _split_messages(text: str) -> list[str]:
     return result[:3]
 
 
+async def _check_image_cooldown(db, conversation_id: uuid.UUID) -> bool:
+    """检查最近5分钟内是否已生成过图片"""
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=5)
+    result = await db.execute(
+        select(func.count()).select_from(Message).where(
+            Message.conversation_id == conversation_id,
+            Message.content_type == "image",
+            Message.created_at >= cutoff,
+        )
+    )
+    return result.scalar() == 0
+
+
 @router.websocket("/{conversation_id}")
 async def chat_websocket(websocket: WebSocket, conversation_id: str):
-    user_id = None
+    user_id = str(uuid.uuid4())  # 默认使用随机 guest ID
+    token_authenticated = False
 
-    # 必须先接受 WebSocket 连接，才能收发消息
     await websocket.accept()
 
     try:
-        # 等待认证消息
+        # 首条消息：可选 JWT 认证
         raw = await asyncio.wait_for(websocket.receive_text(), timeout=15)
         msg = json.loads(raw)
 
-        if msg.get("type") != "auth":
-            await websocket.send_json({"type": "error", "message": "请先发送认证消息"})
-            await websocket.close(code=4000)
-            return
-
-        # 验证 JWT
-        try:
-            payload = decode_token(msg["token"])
-            user_id = payload.get("sub")
-            if not user_id:
-                await websocket.send_json({"type": "error", "message": "无效的令牌"})
-                await websocket.close(code=4001)
-                return
-        except Exception:
-            await websocket.send_json({"type": "error", "message": "令牌验证失败"})
-            await websocket.close(code=4001)
-            return
+        if msg.get("type") == "auth" and msg.get("token"):
+            try:
+                payload = decode_token(msg["token"])
+                uid = payload.get("sub")
+                if uid:
+                    user_id = uid
+                    token_authenticated = True
+            except Exception:
+                pass  # token 无效，继续用 guest ID
 
         manager.active[f"{user_id}:{conversation_id}"] = websocket
 
+        # 如果首条消息是 auth，等下一轮；否则立即处理为 chat
+        first_message = msg if msg.get("type") != "auth" else None
+
         # 监听消息
         while True:
-            raw = await websocket.receive_text()
-            msg = json.loads(raw)
+            if first_message:
+                msg = first_message
+                first_message = None
+            else:
+                raw = await websocket.receive_text()
+                msg = json.loads(raw)
 
             if msg.get("type") == "chat":
                 user_message = msg.get("message", "")
                 image_data = msg.get("image")
+
+                # 有图片时先调视觉模型识图
+                if image_data and settings.vision_enabled:
+                    try:
+                        description = await engine.describe_image(image_data)
+                        user_message = f"[用户发了一张照片：{description}] 用户说：{user_message or '看看这张图'}"
+                    except Exception:
+                        user_message = user_message or "[图片]"
 
                 async with AsyncSessionLocal() as db:
                     # 记录用户消息
@@ -281,7 +304,7 @@ async def chat_websocket(websocket: WebSocket, conversation_id: str):
                     system_prompt=system_prompt,
                     history=history,
                     user_message=user_message,
-                    image_data=image_data,
+                    image_data=None,  # 图片已转为文字描述，不再直接传图
                     personality_profile=personality_profile,
                     emotion_state=conv.emotion_state,
                     memories=memories,
@@ -302,6 +325,55 @@ async def chat_websocket(websocket: WebSocket, conversation_id: str):
                     await emotion_task
                 except Exception:
                     pass
+
+                # 检查是否有 [IMAGE:...] 标记，触发生图
+                image_matches = re.findall(r'\[IMAGE:(.*?)\]', full_reply)
+                if image_matches and settings.painting_enabled:
+                    image_prompt = image_matches[0].strip()
+                    # 从回复中移除标记，保持文本干净
+                    clean_reply = re.sub(r'\[IMAGE:.*?\]', '', full_reply).strip()
+                    full_reply = clean_reply or full_reply
+
+                    async with AsyncSessionLocal() as img_db:
+                        if await _check_image_cooldown(img_db, uuid.UUID(conversation_id)):
+                            try:
+                                import logging
+                                logger = logging.getLogger(__name__)
+                                headers = {
+                                    "Authorization": f"Bearer {settings.painting_api_key}",
+                                    "Content-Type": "application/json",
+                                }
+                                payload = {
+                                    "model": settings.painting_model,
+                                    "prompt": image_prompt,
+                                    "n": 1,
+                                    "size": "1920x1920",
+                                }
+                                resp = requests.post(
+                                    f"{settings.painting_base_url.rstrip('/')}/images/generations",
+                                    json=payload, headers=headers, timeout=60,
+                                )
+                                if resp.status_code == 200:
+                                    img_url = resp.json()['data'][0]['url']
+                                    # 保存图片消息
+                                    img_msg = Message(
+                                        conversation_id=uuid.UUID(conversation_id),
+                                        role="assistant",
+                                        content=image_prompt,
+                                        content_type="image",
+                                        metadata_={"image_url": img_url, "prompt": image_prompt},
+                                    )
+                                    img_db.add(img_msg)
+                                    await img_db.flush()
+                                    await img_db.commit()
+                                    # 发送图片给前端
+                                    await websocket.send_json({
+                                        "type": "image",
+                                        "url": img_url,
+                                        "prompt": image_prompt,
+                                    })
+                            except Exception:
+                                pass
 
                 # 多消息模式下拆分回复
                 msg_parts = _split_messages(full_reply) if multi else [full_reply]
@@ -373,8 +445,7 @@ async def chat_websocket(websocket: WebSocket, conversation_id: str):
                         })
 
     except asyncio.TimeoutError:
-        await websocket.send_json({"type": "error", "message": "认证超时"})
-        await websocket.close(code=4000)
+        pass  # 超时静默关闭
     except WebSocketDisconnect:
         pass
     except Exception as e:

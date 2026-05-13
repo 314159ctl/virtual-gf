@@ -16,7 +16,6 @@ from config import *
 from ai_engine import AIEngine
 from memory import Memory
 from character_manager import CharacterManager, Character
-from voice import VoiceEngine
 
 # ============================================================
 # 应用初始化
@@ -30,7 +29,6 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 ai_engine = AIEngine(API_KEY, BASE_URL, MODEL)
 memory = Memory()
 char_mgr = CharacterManager()
-voice_engine = VoiceEngine(TTS_VOICE)
 
 SETTINGS_PATH = os.path.join(os.path.dirname(__file__), 'data', 'settings.json')
 
@@ -64,10 +62,6 @@ def apply_settings(settings: dict):
     max_token = settings.get('max_token', MAX_TOKEN)
     temperature = settings.get('temperature', TEMPERATURE)
     ai_engine.update_config(api_key, base_url, model, max_token, temperature)
-
-    # 语音设置
-    tts_voice = settings.get('tts_voice', TTS_VOICE)
-    voice_engine.set_voice(tts_voice)
 
 
 # 启动时加载设置
@@ -211,16 +205,10 @@ def handle_chat_message(data):
     # 保存 AI 回复
     memory.add_message(conv_id, 'assistant', full_reply)
 
-    # TTS 语音合成
-    audio_data = None
-    if ENABLE_TTS:
-        audio_data = voice_engine.synthesize(full_reply)
-
     emit('chat_chunk', {
         "chunk": "",
         "done": True,
-        "full_reply": full_reply,
-        "audio": audio_data
+        "full_reply": full_reply
     })
 
 
@@ -256,57 +244,12 @@ def handle_synthesize_speech(data):
 
 
 # ============================================================
-# PyWebView 窗口
-# ============================================================
-def create_window():
-    """创建桌面窗口"""
-    try:
-        import webview
-
-        window = webview.create_window(
-            title='虚拟女友',
-            url='http://localhost:{}'.format(PORT),
-            width=WINDOW_WIDTH,
-            height=WINDOW_HEIGHT,
-            min_size=(WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT),
-            resizable=True,
-            text_select=True,
-        )
-        webview.start(
-            gui='cef',
-            private_mode=False,
-            debug=False
-        )
-    except ImportError:
-        print("PyWebView 未安装，请在浏览器中访问 http://localhost:{}".format(PORT))
-        input("按 Enter 退出...")
-
-
-# ============================================================
 # 启动入口
 # ============================================================
 if __name__ == '__main__':
-    import argparse
-
-    parser = argparse.ArgumentParser(description='虚拟女友')
-    parser.add_argument('--no-window', action='store_true', help='不显示桌面窗口，仅启动 Web 服务')
-    args = parser.parse_args()
-
     # 确保默认角色存在
     if not char_mgr.list_characters():
         char_mgr.create_default_character()
 
-    if args.no_window:
-        print(f"服务启动: http://localhost:{PORT}")
-        socketio.run(app, host='127.0.0.1', port=PORT, debug=False, allow_unsafe_werkzeug=True)
-    else:
-        # 启动 Flask 服务线程
-        flask_thread = threading.Thread(
-            target=lambda: socketio.run(app, host='127.0.0.1', port=PORT,
-                                        debug=False, use_reloader=False,
-                                        allow_unsafe_werkzeug=True),
-            daemon=True
-        )
-        flask_thread.start()
-        print(f"正在启动虚拟女友... (http://localhost:{PORT})")
-        create_window()
+    print(f"服务启动: http://localhost:{PORT}")
+    socketio.run(app, host='127.0.0.1', port=PORT, debug=False, allow_unsafe_werkzeug=True)

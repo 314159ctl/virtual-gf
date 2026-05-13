@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Depends
 
-from app.core.dependencies import get_current_user, check_quota
+from app.core.dependencies import get_optional_user
 from app.schemas.chat import ChatRequest, ChatResponse
 
 router = APIRouter()
@@ -11,8 +11,7 @@ router = APIRouter()
 @router.post("", response_model=ChatResponse)
 async def chat(
     data: ChatRequest,
-    current_user=Depends(get_current_user),
-    _quota=Depends(check_quota("chat")),
+    current_user=Depends(get_optional_user),
 ):
     """非流式聊天（备用）。流式聊天请使用 WebSocket /ws/chat/{conversation_id}"""
     # 临时：使用旧版 AI 引擎

@@ -3,7 +3,6 @@ import { computed, onMounted, watch, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useChatStore } from '@/stores/chat'
-import { useAuthStore } from '@/stores/auth'
 import { useAutoScroll } from '@/composables/useAutoScroll'
 import TopBar from '@/components/layout/TopBar.vue'
 import MessageBubble from '@/components/chat/MessageBubble.vue'
@@ -18,7 +17,6 @@ const props = defineProps<{ characterId: string }>()
 
 const router = useRouter()
 const chat = useChatStore()
-const auth = useAuthStore()
 const { currentCharacter, messages, isStreaming, streamingContent } = storeToRefs(chat)
 
 const displayMessages = computed(() =>
@@ -35,7 +33,6 @@ const loadError = ref('')
 const showMemory = ref(false)
 
 onMounted(async () => {
-  await auth.fetchUser()
   try {
     await chat.selectCharacter(props.characterId)
   } catch (e: any) {
@@ -58,11 +55,6 @@ function goBack() {
   router.push({ name: 'home' })
 }
 
-function logout() {
-  auth.logout()
-  router.push({ name: 'login' })
-}
-
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 }
@@ -79,9 +71,7 @@ function formatDate() {
     <TopBar
       :title="currentCharacter?.name"
       :show-back="true"
-      :username="auth.user?.username"
       @back="goBack"
-      @logout="logout"
     >
       <template #actions>
         <button class="memory-btn" @click="showMemory = true" title="记忆管理">

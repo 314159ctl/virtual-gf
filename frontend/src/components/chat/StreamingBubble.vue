@@ -38,7 +38,7 @@ defineProps<{
   color: #fff;
   margin-top: 2px;
   background: var(--avatar-gradient-1);
-  box-shadow: var(--shadow-xs);
+  box-shadow: var(--shadow-sm);
 }
 .msg-bubble {
   padding: 12px 18px;

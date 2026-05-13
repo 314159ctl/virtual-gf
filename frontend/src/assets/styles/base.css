@@ -76,17 +76,3 @@ a { color: inherit; text-decoration: none; }
   50%      { transform: translateY(-6px); }
 }
 
-/* 心跳动画 */
-@keyframes heartbeat {
-  0%, 100% { transform: scale(1); }
-  14%      { transform: scale(1.1); }
-  28%      { transform: scale(1); }
-  42%      { transform: scale(1.1); }
-  70%      { transform: scale(1); }
-}
-
-/* 呼吸光晕 */
-@keyframes breathe {
-  0%, 100% { opacity: 0.4; }
-  50%      { opacity: 0.8; }
-}

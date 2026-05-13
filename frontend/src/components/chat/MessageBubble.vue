@@ -63,7 +63,7 @@ defineProps<{
   font-family: var(--font-heading);
   color: #fff;
   margin-top: 2px;
-  box-shadow: var(--shadow-xs);
+  box-shadow: var(--shadow-sm);
 }
 .msg-avatar.assistant {
   background: var(--avatar-gradient-1);

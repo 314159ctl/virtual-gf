@@ -38,7 +38,7 @@ defineEmits<{ close: [] }>()
 .modal-content {
   background: var(--color-surface);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-xl), var(--shadow-glow);
+  box-shadow: var(--shadow-lg);
   width: 460px; max-width: 92vw; max-height: 85vh;
   display: flex; flex-direction: column;
 }
