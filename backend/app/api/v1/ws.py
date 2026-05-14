@@ -314,8 +314,8 @@ async def chat_websocket(websocket: WebSocket, conversation_id: str):
                     multi_message=multi,
                 ):
                     full_reply += chunk
-                    # 流式输出时隐藏分隔符
-                    clean_chunk = chunk.replace("[NEXT_MSG]", "")
+                    # 流式输出时隐藏分隔符和图片标记
+                    clean_chunk = re.sub(r'\[IMAGE:.*?\]', '', chunk.replace("[NEXT_MSG]", ""))
                     if clean_chunk:
                         await websocket.send_json({"type": "chunk", "content": clean_chunk})
                     await asyncio.sleep(0.01)
@@ -327,6 +327,8 @@ async def chat_websocket(websocket: WebSocket, conversation_id: str):
                     pass
 
                 # 检查是否有 [IMAGE:...] 标记，触发生图
+                image_result = None
+                image_prompt = ""
                 image_matches = re.findall(r'\[IMAGE:(.*?)\]', full_reply)
                 if image_matches and settings.painting_enabled:
                     image_prompt = image_matches[0].strip()
@@ -337,8 +339,6 @@ async def chat_websocket(websocket: WebSocket, conversation_id: str):
                     async with AsyncSessionLocal() as img_db:
                         if await _check_image_cooldown(img_db, uuid.UUID(conversation_id)):
                             try:
-                                import logging
-                                logger = logging.getLogger(__name__)
                                 headers = {
                                     "Authorization": f"Bearer {settings.painting_api_key}",
                                     "Content-Type": "application/json",
@@ -366,12 +366,7 @@ async def chat_websocket(websocket: WebSocket, conversation_id: str):
                                     img_db.add(img_msg)
                                     await img_db.flush()
                                     await img_db.commit()
-                                    # 发送图片给前端
-                                    await websocket.send_json({
-                                        "type": "image",
-                                        "url": img_url,
-                                        "prompt": image_prompt,
-                                    })
+                                    image_result = {"url": img_url, "prompt": image_prompt}
                             except Exception:
                                 pass
 
@@ -419,14 +414,18 @@ async def chat_websocket(websocket: WebSocket, conversation_id: str):
 
                     await db.commit()
 
-                # 发送 done 事件：第一条（已流式展示），后续逐条模拟流式
+                # 发送 done 事件：第一条（已流式展示 + 可能的图片），后续逐条模拟流式
                 for i, part in enumerate(msg_parts):
                     if i == 0:
-                        await websocket.send_json({
+                        done_msg = {
                             "type": "done",
                             "full_reply": part,
                             "emotion_state": conv.emotion_state,
-                        })
+                        }
+                        if image_result:
+                            done_msg["image_url"] = image_result["url"]
+                            done_msg["image_prompt"] = image_result["prompt"]
+                        await websocket.send_json(done_msg)
                     else:
                         # 模拟真人连续发消息的自然间隔
                         delay = 1.8 + random.uniform(0, 2.5)

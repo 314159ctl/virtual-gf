@@ -22,7 +22,7 @@ defineProps<{
           class="msg-image"
           alt="generated"
         />
-        <span v-if="content && content !== '[图片]'">{{ content }}</span>
+        <span v-if="content && contentType !== 'image'">{{ content }}</span>
       </div>
       <div class="msg-meta" v-if="time" :class="role">
         <span class="msg-time">{{ time }}</span>

@@ -147,12 +147,13 @@ export const useChatStore = defineStore('chat', () => {
         streamingContent.value += data.content
       } else if (data.type === 'done') {
         streamingComplete.value = true
+        const hasImage = !!data.image_url
         messages.value.push({
           id: crypto.randomUUID(),
           role: 'assistant',
           content: data.full_reply,
-          content_type: 'text',
-          metadata: null,
+          content_type: hasImage ? 'image' : 'text',
+          metadata: hasImage ? { image_url: data.image_url, prompt: data.image_prompt } : null,
           emotion_label: null,
           created_at: new Date().toISOString(),
         })
@@ -166,6 +167,7 @@ export const useChatStore = defineStore('chat', () => {
         }, 300)
         isStreaming.value = false
       } else if (data.type === 'image') {
+        // 兼容旧版单独的图片事件
         messages.value.push({
           id: crypto.randomUUID(),
           role: 'assistant',
