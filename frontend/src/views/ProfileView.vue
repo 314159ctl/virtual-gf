@@ -112,7 +112,7 @@ async function setMemImportance(id: string, importance: number) {
 
 function doLogout() {
   auth.logout()
-  router.push('/')
+  router.push('/auth')
 }
 
 function formatDate(iso: string) {

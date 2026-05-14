@@ -15,13 +15,10 @@ defineEmits<{
 
 const router = useRouter()
 const auth = useAuthStore()
-const { guestName, userAvatar, isLoggedIn } = storeToRefs(auth)
+const { guestName, userAvatar } = storeToRefs(auth)
 
 function goProfile() {
   router.push('/profile')
-}
-function goAuth() {
-  router.push('/auth')
 }
 </script>
 
@@ -43,8 +40,7 @@ function goAuth() {
     </div>
 
     <div class="top-bar-right">
-      <button v-if="!isLoggedIn" class="login-btn" @click="goAuth">登录</button>
-      <div v-else class="user-avatar" @click="goProfile" title="个人中心">
+      <div class="user-avatar" @click="goProfile" title="个人中心">
         <img v-if="userAvatar" :src="userAvatar" class="avatar-img" alt="" />
         <span v-else>{{ guestName?.[0] || '?' }}</span>
       </div>
@@ -108,23 +104,6 @@ function goAuth() {
 
 .top-bar-right {
   display: flex; align-items: center; gap: 8px;
-}
-
-.login-btn {
-  padding: 6px 18px;
-  border: 1.5px solid var(--color-primary);
-  border-radius: var(--radius-full);
-  font-size: var(--text-xs);
-  font-family: var(--font-heading);
-  font-weight: 600;
-  color: var(--color-primary);
-  background: transparent;
-  cursor: pointer;
-  transition: all var(--duration-fast) var(--ease-smooth);
-}
-.login-btn:hover {
-  background: var(--color-primary);
-  color: #fff;
 }
 
 .user-avatar {

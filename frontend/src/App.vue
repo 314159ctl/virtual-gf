@@ -1,11 +1,17 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
+const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
 
 onMounted(async () => {
-  await auth.initGuest()
+  const ok = await auth.checkAuth()
+  if (!ok && route.path !== '/auth') {
+    router.replace('/auth')
+  }
 })
 </script>
 

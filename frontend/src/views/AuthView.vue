@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { Sparkles } from 'lucide-vue-next'
@@ -10,12 +10,6 @@ const auth = useAuthStore()
 const tab = ref<'login' | 'register'>('login')
 const loading = ref(false)
 const error = ref('')
-
-onMounted(() => {
-  if (auth.isLoggedIn) {
-    router.replace('/')
-  }
-})
 
 // 登录表单
 const loginEmail = ref('')

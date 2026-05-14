@@ -22,14 +22,13 @@ function addAuthInterceptor(instance: ReturnType<typeof axios.create>) {
     return config
   })
 
-  // 响应拦截：401 时先尝试刷新 token，失败则降级为 guest
+  // 响应拦截：401 时尝试刷新 token，失败则清除并跳转登录页
   instance.interceptors.response.use(
     (res) => res,
     async (error) => {
       const original = error.config
       if (error.response?.status === 401 && !original._retry) {
         original._retry = true
-        // 尝试用 refresh token 换取新的 access token
         const refreshToken = localStorage.getItem('refresh_token')
         if (refreshToken) {
           try {
@@ -39,18 +38,13 @@ function addAuthInterceptor(instance: ReturnType<typeof axios.create>) {
             original.headers.Authorization = `Bearer ${data.access_token}`
             return instance(original)
           } catch {
-            // refresh 失败，降级为 guest
+            // refresh 失败，清除并跳转
           }
         }
-        try {
-          const { data } = await axios.post('/api/v1/auth/guest')
-          localStorage.setItem('access_token', data.access_token)
-          localStorage.setItem('refresh_token', data.refresh_token)
-          original.headers.Authorization = `Bearer ${data.access_token}`
-          return instance(original)
-        } catch {
-          localStorage.clear()
-        }
+        localStorage.removeItem('access_token')
+        localStorage.removeItem('refresh_token')
+        window.location.href = '/auth'
+        return Promise.reject(error)
       }
       return Promise.reject(error)
     }

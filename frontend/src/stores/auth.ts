@@ -6,48 +6,49 @@ import type { AuthTokens } from '@/types/models'
 const GUEST_EMAIL = 'system_guest@virtual-gf.local'
 
 export const useAuthStore = defineStore('auth', () => {
-  const guestReady = ref(false)
-  const guestName = ref('访客')
+  const guestName = ref('')
   const userAvatar = ref<string | null>(null)
   const userEmail = ref('')
+  const authChecked = ref(false) // 启动时的 token 校验是否完成
 
   const isLoggedIn = computed(() => !!userEmail.value && userEmail.value !== GUEST_EMAIL)
+  const hasToken = () => !!localStorage.getItem('access_token')
 
-  async function initGuest() {
-    // 如果已有 token，先尝试加载用户信息
+  async function checkAuth(): Promise<boolean> {
     const token = localStorage.getItem('access_token')
-    if (token) {
-      try {
-        await loadUserInfo()
-        guestReady.value = true
-        return
-      } catch {
-        // token 失效，继续走 guest 流程
-      }
+    if (!token) {
+      authChecked.value = true
+      return false
     }
     try {
-      const res = await api.post<AuthTokens>('/auth/guest')
-      localStorage.setItem('access_token', res.data.access_token)
-      localStorage.setItem('refresh_token', res.data.refresh_token)
-      guestReady.value = true
-    } catch {
-      if (!localStorage.getItem('access_token')) {
-        localStorage.setItem('access_token', 'guest-fallback-' + Date.now())
+      await loadUserInfo()
+      if (userEmail.value === GUEST_EMAIL) {
+        // 清除游客 token，要求正式登录
+        localStorage.removeItem('access_token')
+        localStorage.removeItem('refresh_token')
+        authChecked.value = true
+        return false
       }
-      guestReady.value = true
+      authChecked.value = true
+      return true
+    } catch {
+      localStorage.removeItem('access_token')
+      localStorage.removeItem('refresh_token')
+      authChecked.value = true
+      return false
     }
   }
 
   async function loadUserInfo() {
     const res = await api.get<{ email: string; username: string; avatar_url: string | null }>('/users/me')
-    guestName.value = res.data.username || '访客'
+    guestName.value = res.data.username || ''
     userAvatar.value = res.data.avatar_url
     userEmail.value = res.data.email || ''
   }
 
   async function updateProfile(data: { username?: string; avatar_url?: string }) {
     const res = await api.patch<{ username: string; avatar_url: string | null }>('/users/me', data)
-    guestName.value = res.data.username || '访客'
+    guestName.value = res.data.username || ''
     userAvatar.value = res.data.avatar_url
   }
 
@@ -56,23 +57,20 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem('access_token', res.data.access_token)
     localStorage.setItem('refresh_token', res.data.refresh_token)
     await loadUserInfo()
-    guestReady.value = true
   }
 
   async function register(email: string, username: string, password: string) {
     await api.post('/auth/register', { email, username, password })
-    // 注册成功后自动登录
     await login(email, password)
   }
 
   function logout() {
     localStorage.removeItem('access_token')
     localStorage.removeItem('refresh_token')
-    guestName.value = '访客'
+    guestName.value = ''
     userAvatar.value = null
     userEmail.value = ''
-    guestReady.value = false
   }
 
-  return { guestReady, guestName, userAvatar, userEmail, isLoggedIn, initGuest, loadUserInfo, updateProfile, login, register, logout }
+  return { guestName, userAvatar, userEmail, authChecked, isLoggedIn, hasToken, checkAuth, loadUserInfo, updateProfile, login, register, logout }
 })
