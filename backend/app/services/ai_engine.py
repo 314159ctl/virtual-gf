@@ -159,10 +159,15 @@ class EnhancedAIEngine:
         return f"\n# 角色知识库（参考素材）\n\n你可以参考以下素材来丰富你的角色扮演：\n\n{combined}"
 
     async def describe_image(self, image_base64: str) -> str:
-        """调用视觉模型描述图片，返回中文文字描述"""
+        """调用视觉模型描述图片，返回中文文字描述
+        image_base64 可以是纯 base64 字符串，也可以是完整的 data URL (data:image/...;base64,...)
+        """
         import logging
         logger = logging.getLogger(__name__)
         try:
+            # 如果已经是完整的 data URL，直接使用；否则加上前缀
+            image_url = image_base64 if image_base64.startswith("data:") else f"data:image/jpeg;base64,{image_base64}"
+
             vision_client = AsyncOpenAI(
                 api_key=settings.vision_api_key,
                 base_url=settings.vision_base_url,
@@ -172,7 +177,7 @@ class EnhancedAIEngine:
                 messages=[{
                     "role": "user",
                     "content": [
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}},
+                        {"type": "image_url", "image_url": {"url": image_url}},
                         {"type": "text", "text": "请用中文详细描述这张图片的内容。如果图片中有人物，描述其外貌、表情、穿着和场景。"},
                     ]
                 }],
@@ -288,11 +293,12 @@ class EnhancedAIEngine:
                 messages.append({"role": "assistant", "content": h.get("content", "")})
 
         if image_data:
+            image_url = image_data if image_data.startswith("data:") else f"data:image/jpeg;base64,{image_data}"
             messages.append({
                 "role": "user",
                 "content": [
                     {"type": "text", "text": user_message},
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_data}"}},
+                    {"type": "image_url", "image_url": {"url": image_url}},
                 ]
             })
         else:
