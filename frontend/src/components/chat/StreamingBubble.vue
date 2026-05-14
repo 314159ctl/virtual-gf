@@ -1,8 +1,14 @@
 <script setup lang="ts">
-defineProps<{
+import { computed } from 'vue'
+
+const props = defineProps<{
   content: string
   avatarName?: string
 }>()
+
+const filtered = computed(() => {
+  return props.content.replace(/\[IMAGE:.*?\]/gs, '')
+})
 </script>
 
 <template>
@@ -10,7 +16,7 @@ defineProps<{
     <div class="msg-avatar">{{ avatarName || '?' }}</div>
     <div class="msg-content">
       <div class="msg-bubble">
-        {{ content }}<span class="cursor">|</span>
+        {{ filtered }}<span class="cursor">|</span>
       </div>
     </div>
   </div>

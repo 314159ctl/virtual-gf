@@ -144,8 +144,7 @@ export const useChatStore = defineStore('chat', () => {
       const data = JSON.parse(event.data)
       if (data.type === 'chunk') {
         if (!isStreaming.value) isStreaming.value = true
-        // 过滤 [IMAGE:...] 标记（兜底，后端已过滤但防止跨 chunk 残片）
-        streamingContent.value += data.content.replace(/\[IMAGE:.*?\]/gs, '')
+        streamingContent.value += data.content
       } else if (data.type === 'done') {
         streamingComplete.value = true
         const hasImage = !!data.image_url
