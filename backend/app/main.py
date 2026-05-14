@@ -1,6 +1,7 @@
 """FastAPI 应用入口"""
 
 import logging
+import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -15,17 +16,34 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期：启动/关闭时执行"""
-    # 启动时：验证数据库连接 + 自动建表
+    from app.db.session import engine, AsyncSessionLocal
+    from app.db.base import Base
+    from app.models.__init__ import (
+        User, Character, Conversation, Message,
+        LongTermMemory, CharacterDocument, Payment, UsageLog,
+    )
+    from app.core.security import hash_password
+
     try:
-        from app.db.session import engine
-        from app.db.base import Base
-        from app.models.__init__ import (  # noqa: F401 — 导入模型确保注册到 Base
-            User, Character, Conversation, Message,
-            LongTermMemory, CharacterDocument, Payment, UsageLog,
-        )
+        # 自动建表
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
         print("[OK] 数据库表已就绪")
+
+        # 确保系统 guest 用户存在（避免外键约束失败）
+        async with AsyncSessionLocal() as db:
+            from sqlalchemy import select
+            guest_id = uuid.UUID("00000000-0000-0000-0000-000000000000")
+            existing = await db.execute(select(User).where(User.id == guest_id))
+            if not existing.scalar_one_or_none():
+                db.add(User(
+                    id=guest_id,
+                    email="system_guest@virtual-gf.local",
+                    username="系统访客",
+                    password_hash=hash_password("system-guest-no-login"),
+                ))
+                await db.commit()
+                print("[OK] 系统 guest 用户已创建")
     except Exception as e:
         print(f"[WARN] 数据库未就绪: {e}")
         print("  请先启动 docker compose 或配置 DATABASE_URL")
