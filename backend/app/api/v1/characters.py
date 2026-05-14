@@ -15,6 +15,7 @@ from app.models.user import User
 from app.schemas.character import (
     CharacterCreate, CharacterOut, CharacterUpdate,
     CharacterGenerateRequest, CharacterGenerateResponse,
+    ChatAnalysisRequest, ChatAnalysisResponse,
     CharacterDocumentOut,
 )
 from app.services.ai_engine import EnhancedAIEngine
@@ -57,6 +58,17 @@ async def generate_character(
     engine = EnhancedAIEngine()
     profile = await engine.generate_personality_profile(data.user_description)
     return CharacterGenerateResponse(personality_profile=profile)
+
+
+@router.post("/analyze-chat", response_model=ChatAnalysisResponse)
+async def analyze_chat_logs(
+    data: ChatAnalysisRequest,
+    current_user: User | None = Depends(get_optional_user),
+):
+    """AI 分析聊天记录，提取人格特征"""
+    engine = EnhancedAIEngine()
+    result = await engine.analyze_chat_logs(data.chat_text, data.current_profile)
+    return ChatAnalysisResponse(**result)
 
 
 @router.get("", response_model=list[CharacterOut])
@@ -159,7 +171,13 @@ async def delete_character(
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(get_optional_user),
 ):
-    """删除角色"""
+    """删除角色（级联清理关联数据）"""
+    from sqlalchemy import delete as sql_delete
+    from app.models.conversation import Conversation
+    from app.models.message import Message
+    from app.models.memory import LongTermMemory
+    from app.models.character_document import CharacterDocument
+
     result = await db.execute(select(Character).where(Character.id == character_id))
     char = result.scalar_one_or_none()
     if not char:
@@ -169,7 +187,25 @@ async def delete_character(
     if char.is_template and current_user and not (current_user.is_admin if hasattr(current_user, 'is_admin') else False):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="不能删除系统模板角色")
 
-    await db.delete(char)
+    # 查询关联的对话
+    conv_result = await db.execute(
+        select(Conversation.id).where(Conversation.character_id == character_id)
+    )
+    conv_ids = [row[0] for row in conv_result.fetchall()]
+
+    # 按顺序清理：记忆 → 消息 → 对话 → 文档 → 角色
+    if conv_ids:
+        await db.execute(
+            sql_delete(LongTermMemory).where(LongTermMemory.source_message_id.in_(
+                select(Message.id).where(Message.conversation_id.in_(conv_ids))
+            ))
+        )
+        await db.execute(sql_delete(Message).where(Message.conversation_id.in_(conv_ids)))
+        await db.execute(sql_delete(Conversation).where(Conversation.id.in_(conv_ids)))
+
+    await db.execute(sql_delete(LongTermMemory).where(LongTermMemory.character_id == character_id))
+    await db.execute(sql_delete(CharacterDocument).where(CharacterDocument.character_id == character_id))
+    await db.execute(sql_delete(Character).where(Character.id == character_id))
     await db.flush()
 
 

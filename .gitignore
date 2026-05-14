@@ -43,3 +43,4 @@ frontend/.vite/
 # Sensitive
 *.pem
 *.key
+avatars/

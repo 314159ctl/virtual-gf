@@ -1,12 +1,12 @@
 <script setup lang="ts">
-defineProps<{ show: boolean; title?: string }>()
+defineProps<{ show: boolean; title?: string; closeOnOverlay?: boolean }>()
 defineEmits<{ close: [] }>()
 </script>
 
 <template>
   <Teleport to="body">
     <transition name="modal-fade">
-      <div v-if="show" class="modal-overlay" @click.self="$emit('close')">
+      <div v-if="show" class="modal-overlay" @click.self="closeOnOverlay !== false && $emit('close')">
         <transition name="modal-slide">
           <div v-if="show" class="modal-content">
             <div class="modal-header">

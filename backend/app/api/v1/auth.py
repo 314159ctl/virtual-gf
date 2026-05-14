@@ -14,17 +14,22 @@ router = APIRouter()
 
 @router.post("/guest", response_model=TokenResponse)
 async def guest_login(db: AsyncSession = Depends(get_db)):
-    """免注册 guest 登录，返回 JWT 令牌对"""
-    import uuid as _uuid
-    guest_id = str(_uuid.uuid4())[:8]
-    user = User(
-        email=f"guest_{guest_id}@guest.local",
-        username=f"访客{guest_id}",
-        password_hash=hash_password(_uuid.uuid4().hex),
-    )
-    db.add(user)
-    await db.flush()
-    await db.refresh(user)
+    """免注册 guest 登录，始终使用固定系统访客用户"""
+    from uuid import UUID
+    GUEST_ID = UUID("00000000-0000-0000-0000-000000000000")
+
+    result = await db.execute(select(User).where(User.id == GUEST_ID))
+    user = result.scalar_one_or_none()
+    if not user:
+        user = User(
+            id=GUEST_ID,
+            email="system_guest@virtual-gf.local",
+            username="访客",
+            password_hash=hash_password("system-guest-no-login"),
+        )
+        db.add(user)
+        await db.flush()
+        await db.refresh(user)
 
     access_token = create_access_token(str(user.id), "free")
     refresh_token = create_refresh_token(str(user.id))

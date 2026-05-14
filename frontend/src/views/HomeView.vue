@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { Plus } from 'lucide-vue-next'
@@ -9,6 +9,7 @@ import TopBar from '@/components/layout/TopBar.vue'
 import CharacterCard from '@/components/shared/CharacterCard.vue'
 import CreateCharacterForm from '@/components/shared/CreateCharacterForm.vue'
 import BaseModal from '@/components/shared/BaseModal.vue'
+import type { Character } from '@/types/models'
 
 const router = useRouter()
 const chat = useChatStore()
@@ -17,6 +18,12 @@ const { characters } = storeToRefs(chat)
 
 const showCreateModal = ref(false)
 const creating = ref(false)
+
+// 删除确认
+const charToDelete = ref<Character | null>(null)
+const showDeleteModal = computed(() => charToDelete.value !== null)
+const deleting = ref(false)
+const deleteError = ref('')
 
 onMounted(async () => {
   await chat.loadCharacters()
@@ -27,7 +34,31 @@ async function onSelectCharacter(characterId: string) {
   router.push(`/chat/${characterId}`)
 }
 
-async function onCreateCharacter(data: { name: string; description: string; system_prompt: string; personality_profile: Record<string, any> | null; files: File[] }) {
+function onDeleteRequest(char: Character) {
+  charToDelete.value = char
+  deleteError.value = ''
+}
+
+async function confirmDelete() {
+  if (!charToDelete.value) return
+  deleting.value = true
+  deleteError.value = ''
+  try {
+    await chat.deleteCharacter(charToDelete.value.id)
+    charToDelete.value = null
+  } catch (e: any) {
+    deleteError.value = e?.response?.data?.detail || e?.message || '删除失败，请重试'
+  } finally {
+    deleting.value = false
+  }
+}
+
+function cancelDelete() {
+  charToDelete.value = null
+  deleteError.value = ''
+}
+
+async function onCreateCharacter(data: { name: string; description: string; system_prompt: string; personality_profile: Record<string, any> | null; files: File[]; avatarFile: File | null }) {
   creating.value = true
   try {
     const char = await chat.createCharacter({
@@ -36,6 +67,9 @@ async function onCreateCharacter(data: { name: string; description: string; syst
       system_prompt: data.system_prompt,
       personality_profile: data.personality_profile,
     })
+    if (data.avatarFile) {
+      await chat.uploadAvatar(char.id, data.avatarFile)
+    }
     if (data.files.length > 0) {
       await chat.uploadCharacterDocuments(char.id, data.files)
     }
@@ -66,6 +100,7 @@ async function onCreateCharacter(data: { name: string; description: string; syst
           :key="char.id"
           :character="char"
           @select="onSelectCharacter(char.id)"
+          @delete-request="onDeleteRequest(char)"
         />
 
         <!-- 创建角色卡片 -->
@@ -79,12 +114,27 @@ async function onCreateCharacter(data: { name: string; description: string; syst
     </div>
 
     <!-- 创建角色弹窗 -->
-    <BaseModal :show="showCreateModal" title="创建新角色" @close="showCreateModal = false">
+    <BaseModal :show="showCreateModal" title="创建新角色" :closeOnOverlay="false" @close="showCreateModal = false">
       <CreateCharacterForm
         :disabled="creating"
         @submit="onCreateCharacter"
         @cancel="showCreateModal = false"
       />
+    </BaseModal>
+
+    <!-- 删除确认弹窗 -->
+    <BaseModal :show="showDeleteModal" title="删除角色" @close="cancelDelete">
+      <p class="delete-confirm-text">
+        真的要抛弃<strong>{{ charToDelete?.name }}</strong>吗 (´；ω；`)
+      </p>
+      <p class="delete-confirm-hint">删掉的话…就再也见不到了哦…那些回忆也会一起消失的…求求你不要丢下我嘛 (⋟﹏⋞)</p>
+      <p v-if="deleteError" class="delete-error">{{ deleteError }}</p>
+      <template #footer>
+        <button class="btn btn-cancel" @click="cancelDelete" :disabled="deleting">取消</button>
+        <button class="btn btn-delete" @click="confirmDelete" :disabled="deleting">
+          {{ deleting ? '删除中...' : '确认删除' }}
+        </button>
+      </template>
     </BaseModal>
   </div>
 </template>
@@ -170,6 +220,57 @@ async function onCreateCharacter(data: { name: string; description: string; syst
 }
 .create-card:hover .create-text {
   color: var(--color-primary);
+}
+
+/* ── 删除确认弹窗 ── */
+.delete-confirm-text {
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  line-height: 1.6;
+  margin-bottom: 8px;
+}
+.delete-confirm-hint {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+.delete-error {
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: rgba(232,128,138,0.1);
+  border: 1px solid rgba(232,128,138,0.2);
+  border-radius: var(--radius-xs);
+  font-size: var(--text-xs);
+  color: var(--color-error);
+}
+
+.btn {
+  padding: 8px 20px;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  font-family: var(--font-body);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-smooth);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn-cancel {
+  background: var(--color-bg);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+}
+.btn-cancel:hover:not(:disabled) {
+  background: var(--color-sakura-light);
+}
+.btn-delete {
+  background: var(--color-error);
+  color: #fff;
+}
+.btn-delete:hover:not(:disabled) {
+  background: #c0392b;
 }
 
 @media (max-width: 768px) {

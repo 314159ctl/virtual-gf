@@ -50,6 +50,15 @@ class CharacterGenerateResponse(BaseModel):
     personality_profile: dict
 
 
+class ChatAnalysisRequest(BaseModel):
+    chat_text: str
+    current_profile: dict | None = None
+
+
+class ChatAnalysisResponse(BaseModel):
+    enhanced_profile: dict
+
+
 class CharacterDocumentOut(BaseModel):
     id: uuid.UUID
     character_id: uuid.UUID

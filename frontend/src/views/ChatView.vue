@@ -10,9 +10,7 @@ import MessageBubble from '@/components/chat/MessageBubble.vue'
 import StreamingBubble from '@/components/chat/StreamingBubble.vue'
 import TypingIndicator from '@/components/chat/TypingIndicator.vue'
 import ChatInput from '@/components/input/ChatInput.vue'
-import MemoryPanel from '@/components/chat/MemoryPanel.vue'
 import EmotionBadge from '@/components/chat/EmotionBadge.vue'
-import { Brain } from 'lucide-vue-next'
 
 const props = defineProps<{ characterId: string }>()
 
@@ -33,7 +31,6 @@ const { onNewContent, checkScrollPosition } = useAutoScroll(messageContainer)
 
 const loading = ref(true)
 const loadError = ref('')
-const showMemory = ref(false)
 
 onMounted(async () => {
   try {
@@ -78,9 +75,6 @@ function formatDate() {
       @back="goBack"
     >
       <template #actions>
-        <button class="memory-btn" @click="showMemory = true" title="记忆管理">
-          <Brain :size="18" />
-        </button>
       </template>
     </TopBar>
 
@@ -134,7 +128,6 @@ function formatDate() {
       </div>
     </template>
 
-    <MemoryPanel :show="showMemory" @close="showMemory = false" />
   </div>
 </template>
 
@@ -203,24 +196,6 @@ function formatDate() {
 .status-btn:hover {
   background: var(--color-primary-dark);
   box-shadow: var(--shadow-sm);
-}
-
-.memory-btn {
-  width: 34px;
-  height: 34px;
-  border: none;
-  border-radius: var(--radius-sm);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  transition: all var(--duration-fast) var(--ease-smooth);
-}
-.memory-btn:hover {
-  background: var(--color-sakura);
-  color: var(--color-accent);
 }
 
 .input-area {

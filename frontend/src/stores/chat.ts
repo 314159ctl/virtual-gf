@@ -71,9 +71,20 @@ export const useChatStore = defineStore('chat', () => {
   async function generateCharacterProfile(description: string): Promise<Record<string, any>> {
     const res = await api.post<{ personality_profile: Record<string, any> }>(
       '/characters/generate',
-      { user_description: description }
+      { user_description: description },
+      { timeout: 120000 },
     )
     return res.data.personality_profile
+  }
+
+  async function analyzeChatLogs(chatText: string, currentProfile?: Record<string, any> | null) {
+    const res = await api.post<{
+      enhanced_profile: Record<string, any>
+    }>('/characters/analyze-chat', {
+      chat_text: chatText,
+      current_profile: currentProfile || null,
+    }, { timeout: 120000 })
+    return res.data
   }
 
   async function uploadCharacterDocuments(characterId: string, files: File[]) {
@@ -82,6 +93,11 @@ export const useChatStore = defineStore('chat', () => {
       form.append('file', file)
       await uploadApi.post(`/characters/${characterId}/documents`, form)
     }
+  }
+
+  async function deleteCharacter(id: string) {
+    await api.delete(`/characters/${id}`)
+    characters.value = characters.value.filter(c => c.id !== id)
   }
 
   async function uploadAvatar(characterId: string, file: File) {
@@ -271,8 +287,8 @@ export const useChatStore = defineStore('chat', () => {
     messages, isStreaming, streamingContent, streamingComplete, emotionState,
     memories,
     loadCharacters, selectCharacter, createCharacter, generateCharacterProfile,
-    uploadCharacterDocuments,
+    analyzeChatLogs, uploadCharacterDocuments,
     loadMessages, sendMessage, connectWebSocket, uploadAvatar,
-    loadMemories, updateMemory, deleteMemory,
+    deleteCharacter, loadMemories, updateMemory, deleteMemory,
   }
 })

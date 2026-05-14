@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { Camera } from 'lucide-vue-next'
+import { Camera, Trash2 } from 'lucide-vue-next'
 import type { Character } from '@/types/models'
 import { useChatStore } from '@/stores/chat'
 
@@ -10,11 +10,17 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   select: []
+  deleteRequest: []
 }>()
 
 const chat = useChatStore()
 const fileInput = ref<HTMLInputElement | null>(null)
 const uploading = ref(false)
+
+function onDeleteClick(e: Event) {
+  e.stopPropagation()
+  emit('deleteRequest')
+}
 
 const gradients = [
   'linear-gradient(135deg, #FF7DAF, #C4A1FF)',
@@ -69,6 +75,15 @@ async function onFileChange(e: Event) {
       <!-- 换头像按钮 -->
       <div class="avatar-edit" @click="triggerUpload" :class="{ uploading }" title="更换头像">
         <Camera :size="18" />
+      </div>
+      <!-- 删除角色按钮（仅非模板角色） -->
+      <div
+        v-if="!character.is_template"
+        class="avatar-delete"
+        @click="onDeleteClick"
+        title="删除角色"
+      >
+        <Trash2 :size="16" />
       </div>
       <input
         ref="fileInput"
@@ -148,6 +163,33 @@ async function onFileChange(e: Event) {
   animation: spin 1s linear infinite;
 }
 .card-avatar:hover .avatar-edit {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.avatar-delete {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  background: rgba(0,0,0,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: all var(--duration-fast) var(--ease-smooth);
+  cursor: pointer;
+  z-index: 2;
+}
+.avatar-delete:hover {
+  background: var(--color-error);
+  transform: translateY(0);
+}
+.card-avatar:hover .avatar-delete {
   opacity: 1;
   transform: translateY(0);
 }

@@ -2,11 +2,14 @@
 
 import asyncio
 import json
+import logging
 import re
 import uuid
 import random
 import requests
 from datetime import datetime, timedelta, timezone
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from sqlalchemy import select, func
@@ -221,13 +224,17 @@ def _call_painting_api(prompt: str) -> dict | None:
         "n": 1,
         "size": "1920x1920",
     }
-    resp = requests.post(
-        f"{settings.painting_base_url.rstrip('/')}/images/generations",
-        json=payload, headers=headers, timeout=60,
-    )
-    if resp.status_code == 200:
-        data = resp.json()
-        return {"url": data["data"][0]["url"], "prompt": prompt}
+    try:
+        resp = requests.post(
+            f"{settings.painting_base_url.rstrip('/')}/images/generations",
+            json=payload, headers=headers, timeout=60,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            return {"url": data["data"][0]["url"], "prompt": prompt}
+        logger.error(f"Painting API error {resp.status_code}: {resp.text[:300]}")
+    except Exception as e:
+        logger.error(f"Painting API call failed: {e}")
     return None
 
 
@@ -238,6 +245,8 @@ async def _generate_image(conversation_id: str, image_prompt: str) -> dict | Non
             return None
         try:
             result = await asyncio.to_thread(_call_painting_api, image_prompt)
+            if not result:
+                logger.warning(f"Image generation returned no result for prompt: {image_prompt[:100]}")
             if result:
                 img_msg = Message(
                     conversation_id=uuid.UUID(conversation_id),
