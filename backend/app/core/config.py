@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     # DeepSeek API
     deepseek_api_key: str = ""
     deepseek_base_url: str = "https://api.deepseek.com"
-    deepseek_model: str = "deepseek-chat"
+    deepseek_model: str = "deepseek-v4-pro"
     deepseek_max_token: int = 2000
     deepseek_temperature: float = 0.9
 
