@@ -331,7 +331,7 @@ async def chat_websocket(websocket: WebSocket, conversation_id: str):
 
                         # 没有完整标记 — 检查末尾是否可能是 [IMAGE: 前缀
                         held = False
-                        for i in range(1, len(IMAGE_TAG)):
+                        for i in range(1, len(IMAGE_TAG) + 1):
                             if stream_buffer.endswith(IMAGE_TAG[:i]):
                                 # 扣住前缀部分
                                 if len(stream_buffer) > i:
