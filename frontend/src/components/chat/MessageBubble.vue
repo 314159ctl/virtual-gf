@@ -17,10 +17,10 @@ defineProps<{
     <div class="msg-content">
       <div class="msg-bubble" :class="role">
         <img
-          v-if="contentType === 'image' && metadata?.image_base64"
-          :src="metadata.image_base64"
+          v-if="contentType === 'image' && (metadata?.image_base64 || metadata?.image_url)"
+          :src="metadata.image_base64 || metadata.image_url"
           class="msg-image"
-          alt="uploaded"
+          alt="generated"
         />
         <span v-if="content && content !== '[图片]'">{{ content }}</span>
       </div>

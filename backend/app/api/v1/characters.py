@@ -210,6 +210,7 @@ async def list_documents(
     character_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(get_optional_user),
+):
     result = await db.execute(
         select(CharacterDocument)
         .where(CharacterDocument.character_id == character_id)

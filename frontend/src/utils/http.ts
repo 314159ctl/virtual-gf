@@ -22,31 +22,21 @@ function addAuthInterceptor(instance: ReturnType<typeof axios.create>) {
     return config
   })
 
-  // 响应拦截：401 时尝试刷新 token
+  // 响应拦截：401 时静默重新 guest 登录
   instance.interceptors.response.use(
     (res) => res,
     async (error) => {
       const original = error.config
       if (error.response?.status === 401 && !original._retry) {
         original._retry = true
-        const refresh = localStorage.getItem('refresh_token')
-        if (refresh) {
-          try {
-            const res = await axios.post('/api/v1/auth/refresh', null, {
-              params: { refresh_token: refresh },
-            })
-            const { access_token, refresh_token } = res.data
-            localStorage.setItem('access_token', access_token)
-            localStorage.setItem('refresh_token', refresh_token)
-            original.headers.Authorization = `Bearer ${access_token}`
-            return instance(original)
-          } catch {
-            localStorage.clear()
-            window.location.href = '/login'
-          }
-        } else {
+        try {
+          const { data } = await axios.post('/api/v1/auth/guest')
+          localStorage.setItem('access_token', data.access_token)
+          localStorage.setItem('refresh_token', data.refresh_token)
+          original.headers.Authorization = `Bearer ${data.access_token}`
+          return instance(original)
+        } catch {
           localStorage.clear()
-          window.location.href = '/login'
         }
       }
       return Promise.reject(error)

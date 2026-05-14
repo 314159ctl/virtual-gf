@@ -165,6 +165,16 @@ export const useChatStore = defineStore('chat', () => {
           streamingComplete.value = false
         }, 300)
         isStreaming.value = false
+      } else if (data.type === 'image') {
+        messages.value.push({
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: data.prompt || '[图片]',
+          content_type: 'image',
+          metadata: { image_url: data.url, prompt: data.prompt },
+          emotion_label: null,
+          created_at: new Date().toISOString(),
+        })
       } else if (data.type === 'error') {
         isStreaming.value = false
         streamingContent.value = ''

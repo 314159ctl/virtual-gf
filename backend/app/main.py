@@ -15,14 +15,17 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期：启动/关闭时执行"""
-    # 启动时：验证数据库连接
+    # 启动时：验证数据库连接 + 自动建表
     try:
         from app.db.session import engine
-        async with engine.connect() as conn:
-            await conn.execute(  # type: ignore
-                __import__("sqlalchemy").text("SELECT 1")
-            )
-        print("[OK] 数据库连接正常")
+        from app.db.base import Base
+        from app.models.__init__ import (  # noqa: F401 — 导入模型确保注册到 Base
+            User, Character, Conversation, Message,
+            LongTermMemory, CharacterDocument, Payment, UsageLog,
+        )
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        print("[OK] 数据库表已就绪")
     except Exception as e:
         print(f"[WARN] 数据库未就绪: {e}")
         print("  请先启动 docker compose 或配置 DATABASE_URL")
