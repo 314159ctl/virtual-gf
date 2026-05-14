@@ -108,42 +108,12 @@ async def seed():
             await db.flush()
             print(f"  [OK] 管理员创建: {ADMIN_USER['email']} / {ADMIN_USER['password']}")
 
-        # 创建默认角色
-        for char_data in DEFAULT_CHARACTERS:
-            result = await db.execute(
-                select(Character).where(
-                    Character.name == char_data["name"],
-                    Character.is_template == True,
-                )
-            )
-            existing = result.scalar_one_or_none()
-            if existing:
-                # 更新已有角色的人格数据
-                if not existing.personality_profile:
-                    existing.personality_profile = char_data["personality_profile"]
-                    existing.system_prompt = char_data.get("system_prompt", "")
-                    print(f"  [OK] 角色更新: {char_data['name']} (添加结构化人格)")
-                else:
-                    print(f"  角色已存在: {char_data['name']}")
-            else:
-                char = Character(
-                    name=char_data["name"],
-                    description=char_data["description"],
-                    system_prompt=char_data.get("system_prompt", ""),
-                    personality_profile=char_data["personality_profile"],
-                    is_template=True,
-                    is_public=True,
-                )
-                db.add(char)
-                print(f"  [OK] 角色创建: {char_data['name']}")
-
         await db.commit()
 
     print()
     print("种子数据初始化完成!")
     print(f"  管理员: {ADMIN_USER['email']} / {ADMIN_USER['password']}")
-    names = ', '.join(c['name'] for c in DEFAULT_CHARACTERS)
-    print(f"  角色: {names}")
+    print("  默认角色将在用户注册或首次访问时自动创建")
 
 
 if __name__ == "__main__":

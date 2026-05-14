@@ -38,7 +38,7 @@ async def guest_login(db: AsyncSession = Depends(get_db)):
 
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 async def register(data: UserRegister, db: AsyncSession = Depends(get_db)):
-    """注册新用户"""
+    """注册新用户，并自动复制默认角色"""
     # 检查邮箱是否已存在
     existing = await db.execute(select(User).where(User.email == data.email))
     if existing.scalar_one_or_none():
@@ -57,6 +57,11 @@ async def register(data: UserRegister, db: AsyncSession = Depends(get_db)):
     db.add(user)
     await db.flush()
     await db.refresh(user)
+
+    # 为新用户复制默认角色
+    from app.api.v1.characters import _copy_defaults_for_user
+    await _copy_defaults_for_user(db, user.id)
+
     return user
 
 
