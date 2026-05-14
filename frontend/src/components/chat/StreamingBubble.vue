@@ -4,16 +4,20 @@ import { computed } from 'vue'
 const props = defineProps<{
   content: string
   avatarName?: string
+  avatarUrl?: string | null
 }>()
 
 const filtered = computed(() => {
-  return props.content.replace(/\[IMAGE:.*?\]/gs, '')
+  return props.content.replace(/\[image[:：].*?\]/gis, '')
 })
 </script>
 
 <template>
   <div class="message assistant">
-    <div class="msg-avatar">{{ avatarName || '?' }}</div>
+    <div class="msg-avatar">
+      <img v-if="avatarUrl" :src="avatarUrl" class="avatar-img" alt="" />
+      <span v-else>{{ avatarName || '?' }}</span>
+    </div>
     <div class="msg-content">
       <div class="msg-bubble">
         {{ filtered }}<span class="cursor">|</span>
@@ -45,19 +49,35 @@ const filtered = computed(() => {
   margin-top: 2px;
   background: var(--avatar-gradient-1);
   box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
 }
 .msg-bubble {
-  padding: 12px 18px;
-  border-radius: var(--radius);
-  border-bottom-left-radius: var(--radius-xs);
+  padding: 10px 14px;
+  border-radius: 8px;
   background: var(--color-bubble-ai);
   color: var(--color-text);
   font-size: 15px;
   line-height: 1.7;
   word-break: break-word;
   font-family: var(--font-body);
-  box-shadow: 0 1px 4px rgba(0,0,0,0.03);
-  border: 1px solid rgba(255,125,175,0.06);
+  position: relative;
+}
+.msg-bubble::after {
+  content: '';
+  position: absolute;
+  top: 12px;
+  left: -6px;
+  width: 0;
+  height: 0;
+  border: 6px solid transparent;
+  border-right-color: var(--color-bubble-ai);
+  border-left: 0;
 }
 .cursor {
   display: inline-block;

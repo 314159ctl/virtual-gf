@@ -27,6 +27,8 @@ router = APIRouter()
 MEMORY_EXTRACT_INTERVAL = 10
 # 每 N 条消息触发一次对话摘要
 SUMMARY_INTERVAL = 30
+# 匹配 [IMAGE:xxx] / [image:xxx] / [IMAGE：xxx]（大小写不敏感+中英文冒号）
+IMAGE_RE = re.compile(r'\[[Ii][Mm][Aa][Gg][Ee][：:](.*?)\]')
 
 
 class ConnectionManager:
@@ -207,6 +209,52 @@ async def _check_image_cooldown(db, conversation_id: uuid.UUID) -> bool:
     return result.scalar() == 0
 
 
+def _call_painting_api(prompt: str) -> dict | None:
+    """同步调用绘画 API（在线程池中执行，避免阻塞事件循环）"""
+    headers = {
+        "Authorization": f"Bearer {settings.painting_api_key}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": settings.painting_model,
+        "prompt": prompt,
+        "n": 1,
+        "size": "1920x1920",
+    }
+    resp = requests.post(
+        f"{settings.painting_base_url.rstrip('/')}/images/generations",
+        json=payload, headers=headers, timeout=60,
+    )
+    if resp.status_code == 200:
+        data = resp.json()
+        return {"url": data["data"][0]["url"], "prompt": prompt}
+    return None
+
+
+async def _generate_image(conversation_id: str, image_prompt: str) -> dict | None:
+    """异步调绘画 API 生图，保存到数据库，返回 {url, prompt}"""
+    async with AsyncSessionLocal() as db:
+        if not await _check_image_cooldown(db, uuid.UUID(conversation_id)):
+            return None
+        try:
+            result = await asyncio.to_thread(_call_painting_api, image_prompt)
+            if result:
+                img_msg = Message(
+                    conversation_id=uuid.UUID(conversation_id),
+                    role="assistant",
+                    content=image_prompt,
+                    content_type="image",
+                    metadata_={"image_url": result["url"], "prompt": image_prompt},
+                )
+                db.add(img_msg)
+                await db.flush()
+                await db.commit()
+                return result
+        except Exception:
+            pass
+    return None
+
+
 @router.websocket("/{conversation_id}")
 async def chat_websocket(websocket: WebSocket, conversation_id: str):
     user_id = str(uuid.uuid4())  # 默认使用随机 guest ID
@@ -295,20 +343,15 @@ async def chat_websocket(websocket: WebSocket, conversation_id: str):
                     await db.commit()
 
                 # 流式调用 AI（在 session 外执行，避免长时间占用连接）
-                full_reply = ""
-
-                # 随机多消息模式（约 35% 概率，让回复更生动）
                 multi = random.random() < 0.35
 
-                IMAGE_TAG = "[IMAGE:"
-                SPLIT_TAGS = ["[IMAGE:", "[NEXT_MSG]"]  # 需要跨 chunk 过滤的标记
+                raw_full_reply = ""
 
-                stream_buffer = ""
                 async for chunk in engine.chat_stream(
                     system_prompt=system_prompt,
                     history=history,
                     user_message=user_message,
-                    image_data=None,  # 图片已转为文字描述，不再直接传图
+                    image_data=None,
                     personality_profile=personality_profile,
                     emotion_state=conv.emotion_state,
                     memories=memories,
@@ -317,93 +360,34 @@ async def chat_websocket(websocket: WebSocket, conversation_id: str):
                     knowledge_docs=knowledge_docs,
                     multi_message=multi,
                 ):
-                    full_reply += chunk
-                    stream_buffer += chunk.replace("[NEXT_MSG]", "")
+                    raw_full_reply += chunk
 
-                    # 循环处理 buffer：移除完整的 [IMAGE:...] 标记，扣住部分前缀
-                    while True:
-                        m = re.search(r'\[IMAGE:.*?\]', stream_buffer)
-                        if m:
-                            if m.start() > 0:
-                                await websocket.send_json({"type": "chunk", "content": stream_buffer[:m.start()]})
-                            stream_buffer = stream_buffer[m.end():]
-                            continue  # 继续看剩余 buffer 还有没有更多标记
+                # 检测并提取 [IMAGE:xxx] 标记
+                image_task = None
+                m = IMAGE_RE.search(raw_full_reply)
+                if m:
+                    image_prompt = m.group(1).strip()
+                    if image_prompt:
+                        image_task = asyncio.create_task(
+                            _generate_image(conversation_id, image_prompt)
+                        )
 
-                        # 没有完整标记 — 检查末尾是否可能是 [IMAGE: 前缀
-                        held = False
-                        for i in range(1, len(IMAGE_TAG) + 1):
-                            if stream_buffer.endswith(IMAGE_TAG[:i]):
-                                # 扣住前缀部分
-                                if len(stream_buffer) > i:
-                                    await websocket.send_json({"type": "chunk", "content": stream_buffer[:-i]})
-                                    stream_buffer = stream_buffer[-i:]
-                                held = True
-                                break
+                # 清理文本（移除 [IMAGE:xxx] 标记）
+                full_reply = IMAGE_RE.sub("", raw_full_reply).strip()
+                if not full_reply:
+                    full_reply = "[图片]"
 
-                        if not held:
-                            if stream_buffer:
-                                await websocket.send_json({"type": "chunk", "content": stream_buffer})
-                                stream_buffer = ""
-                        break  # 当前轮处理完毕
+                # 等待情绪检测和生图任务完成（并行等待）
+                tasks = [emotion_task]
+                if image_task:
+                    tasks.append(image_task)
+                results = await asyncio.gather(*tasks, return_exceptions=True)
 
-                    await asyncio.sleep(0.01)
-
-                # 发送缓冲区残留（可能只剩下无意义的 [IMAGE: 前缀残片）
-                if stream_buffer:
-                    # 最后做一次清理
-                    stream_buffer = re.sub(r'\[IMAGE:.*?\]', '', stream_buffer)
-                    if stream_buffer.strip():
-                        await websocket.send_json({"type": "chunk", "content": stream_buffer})
-
-                # 等待情绪检测完成
-                try:
-                    await emotion_task
-                except Exception:
-                    pass
-
-                # 检查是否有 [IMAGE:...] 标记，触发生图
                 image_result = None
-                image_prompt = ""
-                image_matches = re.findall(r'\[IMAGE:(.*?)\]', full_reply)
-                if image_matches and settings.painting_enabled:
-                    image_prompt = image_matches[0].strip()
-                    # 从回复中移除标记，保持文本干净
-                    clean_reply = re.sub(r'\[IMAGE:.*?\]', '', full_reply).strip()
-                    full_reply = clean_reply or full_reply
-
-                    async with AsyncSessionLocal() as img_db:
-                        if await _check_image_cooldown(img_db, uuid.UUID(conversation_id)):
-                            try:
-                                headers = {
-                                    "Authorization": f"Bearer {settings.painting_api_key}",
-                                    "Content-Type": "application/json",
-                                }
-                                payload = {
-                                    "model": settings.painting_model,
-                                    "prompt": image_prompt,
-                                    "n": 1,
-                                    "size": "1920x1920",
-                                }
-                                resp = requests.post(
-                                    f"{settings.painting_base_url.rstrip('/')}/images/generations",
-                                    json=payload, headers=headers, timeout=60,
-                                )
-                                if resp.status_code == 200:
-                                    img_url = resp.json()['data'][0]['url']
-                                    # 保存图片消息
-                                    img_msg = Message(
-                                        conversation_id=uuid.UUID(conversation_id),
-                                        role="assistant",
-                                        content=image_prompt,
-                                        content_type="image",
-                                        metadata_={"image_url": img_url, "prompt": image_prompt},
-                                    )
-                                    img_db.add(img_msg)
-                                    await img_db.flush()
-                                    await img_db.commit()
-                                    image_result = {"url": img_url, "prompt": image_prompt}
-                            except Exception:
-                                pass
+                if image_task:
+                    img_res = results[1] if len(results) > 1 else None
+                    if img_res and not isinstance(img_res, Exception):
+                        image_result = img_res
 
                 # 多消息模式下拆分回复
                 msg_parts = _split_messages(full_reply) if multi else [full_reply]

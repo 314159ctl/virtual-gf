@@ -1,0 +1,29 @@
+# Git
+.git/
+.gitignore
+
+# Node
+node_modules/
+frontend/node_modules/
+frontend/src/
+frontend/public/
+frontend/.vite/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+
+# Misc
+.claude/
+.DS_Store
+Thumbs.db
+*.md
+temp_image.jpeg
+17055206608bf39a1faf2fcd6141f260.jpg

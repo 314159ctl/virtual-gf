@@ -3,6 +3,7 @@ import { computed, onMounted, watch, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useChatStore } from '@/stores/chat'
+import { useAuthStore } from '@/stores/auth'
 import { useAutoScroll } from '@/composables/useAutoScroll'
 import TopBar from '@/components/layout/TopBar.vue'
 import MessageBubble from '@/components/chat/MessageBubble.vue'
@@ -17,7 +18,9 @@ const props = defineProps<{ characterId: string }>()
 
 const router = useRouter()
 const chat = useChatStore()
+const auth = useAuthStore()
 const { currentCharacter, messages, isStreaming, streamingContent } = storeToRefs(chat)
+const { userAvatar } = storeToRefs(auth)
 
 const displayMessages = computed(() =>
   messages.value.filter((m): m is typeof m & { role: 'user' | 'assistant' } =>
@@ -35,6 +38,7 @@ const showMemory = ref(false)
 onMounted(async () => {
   try {
     await chat.selectCharacter(props.characterId)
+    await auth.loadUserInfo()
   } catch (e: any) {
     loadError.value = e?.response?.data?.detail || '加载角色失败'
   } finally {
@@ -110,12 +114,15 @@ function formatDate() {
           :content-type="m.content_type"
           :metadata="m.metadata"
           :avatar-name="m.role === 'assistant' ? currentCharacter?.name?.[0] : undefined"
+          :avatar-url="m.role === 'assistant' ? currentCharacter?.avatar_url : undefined"
+          :user-avatar-url="m.role === 'user' ? userAvatar : undefined"
         />
 
         <StreamingBubble
           v-if="isStreaming && streamingContent"
           :content="streamingContent"
           :avatar-name="currentCharacter?.name?.[0]"
+          :avatar-url="currentCharacter?.avatar_url"
         />
 
         <TypingIndicator v-if="isStreaming && !streamingContent" />

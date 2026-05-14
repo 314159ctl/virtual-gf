@@ -1,14 +1,20 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import { Camera } from 'lucide-vue-next'
 import type { Character } from '@/types/models'
+import { useChatStore } from '@/stores/chat'
 
 const props = defineProps<{
   character: Character
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   select: []
 }>()
+
+const chat = useChatStore()
+const fileInput = ref<HTMLInputElement | null>(null)
+const uploading = ref(false)
 
 const gradients = [
   'linear-gradient(135deg, #FF7DAF, #C4A1FF)',
@@ -22,7 +28,6 @@ const tags = computed(() => {
   if (!profile) return []
   const result: string[] = []
   if (profile.personality) {
-    // 提取前两个性格关键词
     const keywords = profile.personality.split(/[，,、。]/).filter(Boolean).slice(0, 2)
     result.push(...keywords)
   }
@@ -31,15 +36,47 @@ const tags = computed(() => {
   }
   return result.slice(0, 3)
 })
+
+function triggerUpload(e: Event) {
+  e.stopPropagation()
+  fileInput.value?.click()
+}
+
+async function onFileChange(e: Event) {
+  const target = e.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+  uploading.value = true
+  try {
+    await chat.uploadAvatar(props.character.id, file)
+  } catch {
+    // silently fail
+  } finally {
+    uploading.value = false
+    target.value = ''
+  }
+}
 </script>
 
 <template>
-  <div class="char-card" @click="$emit('select')">
+  <div class="char-card" @click="emit('select')">
     <div
       class="card-avatar"
-      :style="{ background: gradients[Math.abs(character.name.charCodeAt(0)) % gradients.length] }"
+      :style="character.avatar_url ? {} : { background: gradients[Math.abs(character.name.charCodeAt(0)) % gradients.length] }"
     >
-      <span class="avatar-text">{{ character.name[0] }}</span>
+      <img v-if="character.avatar_url" :src="character.avatar_url" class="avatar-img" alt="" />
+      <span v-else class="avatar-text">{{ character.name[0] }}</span>
+      <!-- 换头像按钮 -->
+      <div class="avatar-edit" @click="triggerUpload" :class="{ uploading }" title="更换头像">
+        <Camera :size="18" />
+      </div>
+      <input
+        ref="fileInput"
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        class="file-input"
+        @change="onFileChange"
+      />
     </div>
     <div class="card-info">
       <h3 class="card-name">{{ character.name }}</h3>
@@ -76,6 +113,46 @@ const tags = computed(() => {
   align-items: center;
   justify-content: center;
   position: relative;
+  overflow: hidden;
+}
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: opacity var(--duration-fast);
+}
+.avatar-edit {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  background: rgba(0,0,0,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: all var(--duration-fast) var(--ease-smooth);
+  cursor: pointer;
+  z-index: 2;
+}
+.avatar-edit:hover {
+  background: rgba(0,0,0,0.65);
+  transform: translateY(0);
+}
+.avatar-edit.uploading {
+  opacity: 1;
+  animation: spin 1s linear infinite;
+}
+.card-avatar:hover .avatar-edit {
+  opacity: 1;
+  transform: translateY(0);
+}
+.file-input {
+  display: none;
 }
 .avatar-text {
   font-family: var(--font-heading);
@@ -132,6 +209,7 @@ const tags = computed(() => {
   opacity: 0;
   transition: opacity var(--duration) var(--ease-smooth);
   border-radius: var(--radius-lg);
+  pointer-events: none;
 }
 .char-card:hover .card-overlay {
   opacity: 1;
@@ -142,5 +220,9 @@ const tags = computed(() => {
   font-weight: 600;
   color: #fff;
   letter-spacing: 2px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 </style>

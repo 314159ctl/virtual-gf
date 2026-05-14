@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════
-   千恋万花 — 柚子社风格 Design Tokens
+   恋爱对话模拟器 — Design Tokens
    ═══════════════════════════════════════ */
 
 :root {
@@ -31,10 +31,9 @@
   --color-border-strong: #E8B0C0;
 
   /* ── Bubbles ── */
-  --color-bubble-user: linear-gradient(135deg, #FF7DAF, #FFB8D4);
   --color-bubble-user-solid: #FF7DAF;
-  --color-bubble-ai: #FFF5F7;
-  --color-bubble-ai-hover: #FFECF1;
+  --color-bubble-ai: #FFDEE8;
+  --color-bubble-ai-hover: #FFCFDD;
 
   /* ── States ── */
   --color-success: #7EC8A0;
@@ -49,9 +48,9 @@
   --header-gradient: linear-gradient(90deg, rgba(255,245,248,0.95), rgba(255,232,240,0.95));
 
   /* ── Typography ── */
-  --font-heading: 'Varela Round', 'ZCOOL QingKe HuangYou', 'Noto Sans SC', sans-serif;
-  --font-body: 'Nunito Sans', 'Noto Sans SC', -apple-system, sans-serif;
-  --font-sans: 'Nunito Sans', 'Noto Sans SC', -apple-system, sans-serif;
+  --font-heading: 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+  --font-body: 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+  --font-sans: 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
   --text-base: 1rem;

@@ -22,6 +22,8 @@ from app.services.ai_engine import EnhancedAIEngine
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 ALLOWED_TYPES = {"text/plain", "text/markdown", "application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"}
 ALLOWED_EXTENSIONS = {".txt", ".md", ".pdf", ".docx"}
+AVATAR_ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+AVATAR_MAX_SIZE = 5 * 1024 * 1024  # 5MB
 
 router = APIRouter()
 
@@ -282,3 +284,41 @@ async def delete_document(
 
     await db.delete(doc)
     await db.flush()
+
+
+# ── 头像上传 ──
+
+
+@router.post("/{character_id}/avatar", response_model=CharacterOut)
+async def upload_avatar(
+    character_id: uuid.UUID,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(get_optional_user),
+):
+    """上传角色头像"""
+    result = await db.execute(select(Character).where(Character.id == character_id))
+    char = result.scalar_one_or_none()
+    if not char:
+        raise HTTPException(status_code=404, detail="角色不存在")
+    if char.user_id and current_user and char.user_id != current_user.id and not (current_user.is_admin if hasattr(current_user, 'is_admin') else False):
+        raise HTTPException(status_code=403, detail="无权操作")
+
+    if file.content_type not in AVATAR_ALLOWED_TYPES:
+        raise HTTPException(status_code=400, detail=f"不支持的图片格式，仅支持 JPEG/PNG/WebP/GIF")
+
+    content = await file.read()
+    if len(content) > AVATAR_MAX_SIZE:
+        raise HTTPException(status_code=400, detail=f"图片大小超过上限 (5MB)")
+
+    ext = file.filename.rsplit(".", 1)[-1].lower() if file.filename and "." in file.filename else "png"
+    filename = f"{character_id}.{ext}"
+    filepath = f"static/avatars/{filename}"
+
+    with open(filepath, "wb") as f:
+        f.write(content)
+
+    char.avatar_url = f"/{filepath}"
+    await db.flush()
+    await db.refresh(char)
+    return char

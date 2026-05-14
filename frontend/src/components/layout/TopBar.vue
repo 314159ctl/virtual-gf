@@ -1,16 +1,46 @@
 <script setup lang="ts">
-import { ArrowLeft, LogOut } from 'lucide-vue-next'
+import { ref } from 'vue'
+import { ArrowLeft, LogOut, Camera } from 'lucide-vue-next'
+import { storeToRefs } from 'pinia'
+import { useAuthStore } from '@/stores/auth'
+import { uploadApi } from '@/utils/http'
 
-defineProps<{
+const props = defineProps<{
   title?: string
   showBack?: boolean
-  username?: string
 }>()
 
 defineEmits<{
   back: []
   logout: []
 }>()
+
+const auth = useAuthStore()
+const { guestName, userAvatar } = storeToRefs(auth)
+const fileInput = ref<HTMLInputElement | null>(null)
+const uploading = ref(false)
+
+function triggerUpload() {
+  fileInput.value?.click()
+}
+
+async function onFileChange(e: Event) {
+  const target = e.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+  uploading.value = true
+  try {
+    const form = new FormData()
+    form.append('file', file)
+    const res = await uploadApi.post<{ avatar_url: string | null }>('/users/me/avatar', form)
+    userAvatar.value = res.data.avatar_url
+  } catch {
+    // silently fail
+  } finally {
+    uploading.value = false
+    target.value = ''
+  }
+}
 </script>
 
 <template>
@@ -21,7 +51,7 @@ defineEmits<{
       </button>
       <div class="brand" v-else>
         <span class="brand-icon">🌸</span>
-        <span class="brand-text">千恋万花</span>
+        <span class="brand-text">恋爱对话模拟器</span>
       </div>
       <h1 class="page-title" v-if="title">{{ title }}</h1>
     </div>
@@ -31,8 +61,21 @@ defineEmits<{
     </div>
 
     <div class="top-bar-right">
-      <span class="user-name" v-if="username">{{ username }}</span>
-      <div class="user-avatar" v-if="username">{{ username[0] }}</div>
+      <span class="user-name" v-if="guestName">{{ guestName }}</span>
+      <div class="user-avatar" :class="{ uploading }" @click="triggerUpload" title="更换头像">
+        <img v-if="userAvatar" :src="userAvatar" class="avatar-img" alt="" />
+        <span v-else>{{ guestName?.[0] || '?' }}</span>
+        <div class="avatar-edit">
+          <Camera :size="12" />
+        </div>
+      </div>
+      <input
+        ref="fileInput"
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        class="file-input"
+        @change="onFileChange"
+      />
       <button class="logout-btn" @click="$emit('logout')" title="退出登录">
         <LogOut :size="18" />
       </button>
@@ -127,6 +170,36 @@ defineEmits<{
   color: #fff;
   font-size: 14px;
   font-weight: 600;
+  position: relative;
+  cursor: pointer;
+  overflow: hidden;
+}
+.user-avatar.uploading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+.avatar-edit {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity var(--duration-fast);
+  border-radius: inherit;
+}
+.user-avatar:hover .avatar-edit {
+  opacity: 1;
+}
+.file-input {
+  display: none;
 }
 
 .logout-btn {

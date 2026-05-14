@@ -1,19 +1,36 @@
 <script setup lang="ts">
-defineProps<{
+import { computed } from 'vue'
+
+const props = defineProps<{
   role: 'user' | 'assistant'
   content: string
   time?: string
   avatarName?: string
+  avatarUrl?: string | null
+  userAvatarUrl?: string | null
   contentType?: string
   metadata?: Record<string, any> | null
 }>()
+
+const cleanContent = computed(() => {
+  return props.content?.replace(/\[image[:：].*?\]/gis, '').trim() || '[图片]'
+})
 </script>
 
 <template>
   <div class="message" :class="role">
-    <div class="msg-avatar" :class="role" v-if="role === 'assistant'">
-      {{ avatarName || '?' }}
+    <!-- AI 头像（左，正常 flex） -->
+    <div class="msg-avatar ai-avatar" v-if="role === 'assistant'">
+      <img v-if="avatarUrl" :src="avatarUrl" class="avatar-img" alt="" />
+      <span v-else>{{ avatarName || '?' }}</span>
     </div>
+
+    <!-- 用户头像（row-reverse 反转后会到右边） -->
+    <div class="msg-avatar user-avatar" v-if="role === 'user'">
+      <img v-if="userAvatarUrl" :src="userAvatarUrl" class="avatar-img" alt="" />
+      <span v-else>我</span>
+    </div>
+
     <div class="msg-content">
       <div class="msg-bubble" :class="role">
         <img
@@ -22,14 +39,11 @@ defineProps<{
           class="msg-image"
           alt="generated"
         />
-        <span v-if="content && contentType !== 'image'">{{ content }}</span>
+        <span v-if="content && contentType !== 'image'">{{ cleanContent }}</span>
       </div>
       <div class="msg-meta" v-if="time" :class="role">
         <span class="msg-time">{{ time }}</span>
       </div>
-    </div>
-    <div class="msg-avatar user-avatar" v-if="role === 'user'">
-      我
     </div>
   </div>
 </template>
@@ -64,46 +78,64 @@ defineProps<{
   color: #fff;
   margin-top: 2px;
   box-shadow: var(--shadow-sm);
+  overflow: hidden;
 }
-.msg-avatar.assistant {
+.ai-avatar {
   background: var(--avatar-gradient-1);
 }
 .user-avatar {
   background: var(--avatar-gradient-2);
   font-size: 12px;
 }
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
 
-/* ── Bubble ── */
+/* ── Bubble · 微信风格 ── */
 .msg-bubble {
-  padding: 12px 18px;
-  border-radius: var(--radius);
+  padding: 10px 14px;
+  border-radius: 8px;
   font-size: 15px;
-  line-height: 1.7;
+  line-height: 1.6;
   word-break: break-word;
   font-family: var(--font-body);
-  transition: transform var(--duration-fast) var(--ease-smooth);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
+  position: relative;
 }
 .msg-bubble.user {
   background: var(--color-bubble-user-solid);
   color: #fff;
-  border-bottom-right-radius: var(--radius-xs);
-  box-shadow: 0 2px 8px rgba(255,125,175,0.18);
 }
-.msg-bubble.user:hover {
-  transform: translateY(-1px);
+.msg-bubble.user::after {
+  content: '';
+  position: absolute;
+  top: 12px;
+  right: -6px;
+  width: 0;
+  height: 0;
+  border: 6px solid transparent;
+  border-left-color: var(--color-bubble-user-solid);
+  border-right: 0;
 }
 .msg-bubble.assistant {
   background: var(--color-bubble-ai);
   color: var(--color-text);
-  border-bottom-left-radius: var(--radius-xs);
-  box-shadow: 0 1px 4px rgba(0,0,0,0.03);
-  border: 1px solid rgba(255,125,175,0.06);
 }
-.msg-bubble.assistant:hover {
-  background: var(--color-bubble-ai-hover);
+.msg-bubble.assistant::after {
+  content: '';
+  position: absolute;
+  top: 12px;
+  left: -6px;
+  width: 0;
+  height: 0;
+  border: 6px solid transparent;
+  border-right-color: var(--color-bubble-ai);
+  border-left: 0;
 }
 
 /* ── Image ── */
@@ -124,6 +156,9 @@ defineProps<{
 }
 .msg-meta.user {
   justify-content: flex-end;
+}
+.msg-meta.assistant {
+  justify-content: flex-start;
 }
 .msg-time {
   font-size: 10px;

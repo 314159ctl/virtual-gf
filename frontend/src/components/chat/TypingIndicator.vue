@@ -8,14 +8,9 @@
 .typing {
   display: flex;
   gap: 5px;
-  padding: 14px 18px;
+  padding: 10px 14px;
   align-self: flex-start;
   align-items: center;
-  background: var(--color-bubble-ai);
-  border-radius: var(--radius);
-  border-bottom-left-radius: var(--radius-xs);
-  box-shadow: 0 1px 4px rgba(0,0,0,0.03);
-  border: 1px solid rgba(255,125,175,0.06);
   animation: msgIn 0.3s var(--ease-bounce);
   margin-left: 46px;
 }

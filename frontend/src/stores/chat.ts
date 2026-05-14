@@ -84,6 +84,17 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  async function uploadAvatar(characterId: string, file: File) {
+    const form = new FormData()
+    form.append('file', file)
+    const res = await uploadApi.post<Character>(`/characters/${characterId}/avatar`, form)
+    // 更新列表和当前角色中的头像
+    const idx = characters.value.findIndex(c => c.id === characterId)
+    if (idx >= 0) characters.value[idx] = res.data
+    if (currentCharacter.value?.id === characterId) currentCharacter.value = res.data
+    return res.data
+  }
+
   async function loadMessages() {
     if (!currentConversation.value) return
     const res = await api.get<Message[]>(
@@ -261,7 +272,7 @@ export const useChatStore = defineStore('chat', () => {
     memories,
     loadCharacters, selectCharacter, createCharacter, generateCharacterProfile,
     uploadCharacterDocuments,
-    loadMessages, sendMessage, connectWebSocket,
+    loadMessages, sendMessage, connectWebSocket, uploadAvatar,
     loadMemories, updateMemory, deleteMemory,
   }
 })

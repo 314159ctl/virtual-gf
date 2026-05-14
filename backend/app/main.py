@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
 
@@ -98,6 +99,9 @@ def create_app() -> FastAPI:
     # 用户信息端点
     from app.api.v1.users import router as users_router
     app.include_router(users_router, prefix="/api/v1/users", tags=["用户"])
+
+    # 静态文件（头像等）
+    app.mount("/static", StaticFiles(directory="static"), name="static")
 
     return app
 
