@@ -300,7 +300,10 @@ async def chat_websocket(websocket: WebSocket, conversation_id: str):
                 # 随机多消息模式（约 35% 概率，让回复更生动）
                 multi = random.random() < 0.35
 
-                stream_buffer = ""  # 发送缓冲 — 跨 chunk 过滤 [IMAGE:...] 标记
+                IMAGE_TAG = "[IMAGE:"
+                SPLIT_TAGS = ["[IMAGE:", "[NEXT_MSG]"]  # 需要跨 chunk 过滤的标记
+
+                stream_buffer = ""
                 async for chunk in engine.chat_stream(
                     system_prompt=system_prompt,
                     history=history,
@@ -317,36 +320,40 @@ async def chat_websocket(websocket: WebSocket, conversation_id: str):
                     full_reply += chunk
                     stream_buffer += chunk.replace("[NEXT_MSG]", "")
 
-                    # 跨 chunk 过滤 [IMAGE:...] 标记
+                    # 循环处理 buffer：移除完整的 [IMAGE:...] 标记，扣住部分前缀
                     while True:
-                        m = re.search(r'\[IMAGE:', stream_buffer)
-                        if not m:
-                            # 无标记残片 — 安全发送
+                        m = re.search(r'\[IMAGE:.*?\]', stream_buffer)
+                        if m:
+                            if m.start() > 0:
+                                await websocket.send_json({"type": "chunk", "content": stream_buffer[:m.start()]})
+                            stream_buffer = stream_buffer[m.end():]
+                            continue  # 继续看剩余 buffer 还有没有更多标记
+
+                        # 没有完整标记 — 检查末尾是否可能是 [IMAGE: 前缀
+                        held = False
+                        for i in range(1, len(IMAGE_TAG)):
+                            if stream_buffer.endswith(IMAGE_TAG[:i]):
+                                # 扣住前缀部分
+                                if len(stream_buffer) > i:
+                                    await websocket.send_json({"type": "chunk", "content": stream_buffer[:-i]})
+                                    stream_buffer = stream_buffer[-i:]
+                                held = True
+                                break
+
+                        if not held:
                             if stream_buffer:
                                 await websocket.send_json({"type": "chunk", "content": stream_buffer})
                                 stream_buffer = ""
-                            break
-
-                        # 先发送标记之前的文本
-                        before = stream_buffer[:m.start()]
-                        if before:
-                            await websocket.send_json({"type": "chunk", "content": before})
-
-                        # 查找闭合的 ]
-                        closing = stream_buffer.find(']', m.start())
-                        if closing == -1:
-                            # 还没有 ] — 扣住不放，等下一个 chunk
-                            stream_buffer = stream_buffer[m.start():]
-                            break
-                        else:
-                            # 完整标记 — 跳过 [IMAGE:...]
-                            stream_buffer = stream_buffer[closing + 1:]
+                        break  # 当前轮处理完毕
 
                     await asyncio.sleep(0.01)
 
-                # 发送缓冲区残留
+                # 发送缓冲区残留（可能只剩下无意义的 [IMAGE: 前缀残片）
                 if stream_buffer:
-                    await websocket.send_json({"type": "chunk", "content": stream_buffer})
+                    # 最后做一次清理
+                    stream_buffer = re.sub(r'\[IMAGE:.*?\]', '', stream_buffer)
+                    if stream_buffer.strip():
+                        await websocket.send_json({"type": "chunk", "content": stream_buffer})
 
                 # 等待情绪检测完成
                 try:
