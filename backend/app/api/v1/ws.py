@@ -343,6 +343,7 @@ async def chat_websocket(websocket: WebSocket, conversation_id: str):
             if msg.get("type") == "chat":
                 user_message = msg.get("message", "")
                 image_data = msg.get("image")
+                original_text = user_message  # 保存原始文本，用于 force_image 判断
                 logger.info(f"[CHAT] Received message: user_message={user_message[:80] if user_message else '(empty)'}, has_image={bool(image_data)}")
 
                 # 有图片时先调视觉模型识图
@@ -400,7 +401,8 @@ async def chat_websocket(websocket: WebSocket, conversation_id: str):
                 multi = random.random() < 0.35
 
                 raw_full_reply = ""
-                force_image = bool(IMAGE_REQUEST_KW.search(user_message))
+                # 用原始文本判断，排除识图上下文干扰
+                force_image = bool(IMAGE_REQUEST_KW.search(original_text))
 
                 async for chunk in engine.chat_stream(
                     system_prompt=system_prompt,
