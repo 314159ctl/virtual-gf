@@ -39,7 +39,7 @@ const cleanContent = computed(() => {
           class="msg-image"
           alt="generated"
         />
-        <span v-if="content && contentType !== 'image'">{{ cleanContent }}</span>
+        <span v-if="content" class="msg-text">{{ cleanContent }}</span>
       </div>
       <div class="msg-meta" v-if="time" :class="role">
         <span class="msg-time">{{ time }}</span>

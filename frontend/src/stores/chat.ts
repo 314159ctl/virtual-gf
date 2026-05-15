@@ -244,6 +244,15 @@ export const useChatStore = defineStore('chat', () => {
         isStreaming.value = false
         streamingContent.value = ''
         streamingComplete.value = false
+        messages.value.push({
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: '呜…刚才好像出了点问题 (′；ω；`) 能再说一遍吗？',
+          content_type: 'text',
+          metadata: null,
+          emotion_label: null,
+          created_at: new Date().toISOString(),
+        })
         console.error(data.message)
       }
     }
