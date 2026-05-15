@@ -8,7 +8,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_optional_user
+from app.core.dependencies import get_current_user
+from app.core.security import decrypt_api_key
 from app.db.session import get_db
 from app.models.memory import LongTermMemory
 from app.models.user import User
@@ -27,7 +28,7 @@ async def list_memories(
     character_id: uuid.UUID | None = None,
     limit: int = 20,
     db: AsyncSession = Depends(get_db),
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User | None = Depends(get_current_user),
 ):
     """获取用户的长期记忆"""
     stmt = (
@@ -58,12 +59,11 @@ async def list_memories(
 async def trigger_consolidation(
     character_id: uuid.UUID = Query(...),
     db: AsyncSession = Depends(get_db),
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
 ):
     """触发记忆合并：将短期对话总结为长期记忆"""
-    if not current_user:
-        raise HTTPException(status_code=401, detail="请先登录")
-    result = await consolidate_memories(str(character_id), str(current_user.id), db)
+    api_key = decrypt_api_key(current_user.api_key_encrypted) if current_user.api_key_encrypted else None
+    result = await consolidate_memories(str(character_id), str(current_user.id), db, api_key, current_user.api_base_url, current_user.api_model)
     return result
 
 
@@ -73,7 +73,7 @@ async def create_memory(
     content: str,
     importance: int = 3,
     db: AsyncSession = Depends(get_db),
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User | None = Depends(get_current_user),
 ):
     """手动添加一条长期记忆"""
     if importance < 1 or importance > 5:
@@ -101,7 +101,7 @@ async def update_memory(
     memory_id: uuid.UUID,
     data: MemoryUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User | None = Depends(get_current_user),
 ):
     """编辑记忆内容或重要性"""
     result = await db.execute(select(LongTermMemory).where(LongTermMemory.id == memory_id))
@@ -131,7 +131,7 @@ async def update_memory(
 async def delete_memory(
     memory_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User | None = Depends(get_current_user),
 ):
     """删除一条记忆"""
     result = await db.execute(

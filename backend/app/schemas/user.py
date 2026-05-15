@@ -31,6 +31,9 @@ class UserOut(BaseModel):
     membership_tier: str
     membership_expires_at: datetime | None
     is_admin: bool
+    has_api_key: bool = False  # 是否已配置 API key（不暴露实际值）
+    api_base_url: str | None = None
+    api_model: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -39,3 +42,6 @@ class UserOut(BaseModel):
 class UserUpdate(BaseModel):
     username: str | None = None
     avatar_url: str | None = None
+    api_key: str | None = None
+    api_base_url: str | None = None
+    api_model: str | None = None

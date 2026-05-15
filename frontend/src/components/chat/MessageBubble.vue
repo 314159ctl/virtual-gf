@@ -13,7 +13,12 @@ const props = defineProps<{
 }>()
 
 const cleanContent = computed(() => {
-  return props.content?.replace(/\[image[:：].*?\]/gis, '').trim() || '[图片]'
+  return props.content?.replace(/\[image[:：].*?\]/gis, '').trim() || ''
+})
+
+const hasText = computed(() => {
+  // 纯图片消息（content 只是占位符）不显示文字
+  return cleanContent.value && cleanContent.value !== '[图片]'
 })
 </script>
 
@@ -39,7 +44,7 @@ const cleanContent = computed(() => {
           class="msg-image"
           alt="generated"
         />
-        <span v-if="content" class="msg-text">{{ cleanContent }}</span>
+        <span v-if="hasText" class="msg-text">{{ cleanContent }}</span>
       </div>
       <div class="msg-meta" v-if="time" :class="role">
         <span class="msg-time">{{ time }}</span>

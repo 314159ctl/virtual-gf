@@ -19,6 +19,9 @@ class User(Base, UUIDMixin, TimestampMixin):
     avatar_url: Mapped[str | None] = mapped_column(String(500))
     membership_tier: Mapped[str] = mapped_column(String(20), default="free")  # free / premium / vip
     membership_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    api_key_encrypted: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    api_base_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    api_model: Mapped[str | None] = mapped_column(String(100), nullable=True)
     is_admin: Mapped[bool] = mapped_column(default=False)
     is_active: Mapped[bool] = mapped_column(default=True)
 

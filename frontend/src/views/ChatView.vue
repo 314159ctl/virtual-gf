@@ -18,7 +18,7 @@ const router = useRouter()
 const chat = useChatStore()
 const auth = useAuthStore()
 const { currentCharacter, messages, isStreaming, streamingContent } = storeToRefs(chat)
-const { userAvatar } = storeToRefs(auth)
+const { userAvatar, showApiKeyWarning } = storeToRefs(auth)
 
 const displayMessages = computed(() =>
   messages.value.filter((m): m is typeof m & { role: 'user' | 'assistant' } =>
@@ -132,6 +132,18 @@ function formatDate() {
       </div>
     </template>
 
+    <!-- API Key 警告弹窗 -->
+    <div v-if="showApiKeyWarning" class="api-key-overlay" @click.self="auth.dismissApiKeyWarning()">
+      <div class="api-key-dialog">
+        <div class="dialog-icon">🔑</div>
+        <h3>尚未设置 API Key</h3>
+        <p>需要配置自己的 DeepSeek API Key 才能使用 AI 对话、角色生成等功能。</p>
+        <div class="dialog-actions">
+          <button class="dialog-btn cancel" @click="auth.dismissApiKeyWarning()">稍后再说</button>
+          <button class="dialog-btn confirm" @click="auth.dismissApiKeyWarning(); router.push('/profile')">前往设置</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -219,4 +231,68 @@ function formatDate() {
     gap: 12px;
   }
 }
+
+/* ── API Key Warning Dialog ── */
+.api-key-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease;
+}
+.api-key-dialog {
+  background: var(--color-bg);
+  border-radius: var(--radius-md);
+  padding: 32px 28px 24px;
+  max-width: 360px;
+  width: 90%;
+  text-align: center;
+  box-shadow: var(--shadow-lg);
+  animation: scaleIn 0.25s var(--ease-bounce);
+}
+.dialog-icon { font-size: 40px; margin-bottom: 12px; }
+.api-key-dialog h3 {
+  font-size: 18px;
+  font-weight: 700;
+  font-family: var(--font-heading);
+  color: var(--color-text);
+  margin: 0 0 8px;
+}
+.api-key-dialog p {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  margin: 0 0 20px;
+  line-height: 1.6;
+}
+.dialog-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+.dialog-btn {
+  padding: 8px 20px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  font-family: var(--font-body);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--duration-fast);
+  border: none;
+}
+.dialog-btn.cancel {
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+}
+.dialog-btn.cancel:hover { background: var(--color-border); }
+.dialog-btn.confirm {
+  background: var(--color-primary);
+  color: #fff;
+}
+.dialog-btn.confirm:hover { opacity: 0.9; }
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes scaleIn { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: scale(1); } }
 </style>

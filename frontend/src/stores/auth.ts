@@ -39,17 +39,28 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  const hasApiKey = ref(false)
+  const apiBaseUrl = ref<string | null>(null)
+  const apiModel = ref<string | null>(null)
+  const showApiKeyWarning = ref(false)
+
   async function loadUserInfo() {
-    const res = await api.get<{ email: string; username: string; avatar_url: string | null }>('/users/me')
+    const res = await api.get<{ email: string; username: string; avatar_url: string | null; has_api_key: boolean; api_base_url: string | null; api_model: string | null }>('/users/me')
     guestName.value = res.data.username || ''
     userAvatar.value = res.data.avatar_url
     userEmail.value = res.data.email || ''
+    hasApiKey.value = res.data.has_api_key || false
+    apiBaseUrl.value = res.data.api_base_url || null
+    apiModel.value = res.data.api_model || null
   }
 
-  async function updateProfile(data: { username?: string; avatar_url?: string }) {
-    const res = await api.patch<{ username: string; avatar_url: string | null }>('/users/me', data)
+  async function updateProfile(data: { username?: string; avatar_url?: string; api_key?: string; api_base_url?: string; api_model?: string }) {
+    const res = await api.patch<{ username: string; avatar_url: string | null; has_api_key: boolean; api_base_url: string | null; api_model: string | null }>('/users/me', data)
     guestName.value = res.data.username || ''
     userAvatar.value = res.data.avatar_url
+    hasApiKey.value = res.data.has_api_key || false
+    apiBaseUrl.value = res.data.api_base_url || null
+    apiModel.value = res.data.api_model || null
   }
 
   async function login(email: string, password: string) {
@@ -72,5 +83,13 @@ export const useAuthStore = defineStore('auth', () => {
     userEmail.value = ''
   }
 
-  return { guestName, userAvatar, userEmail, authChecked, isLoggedIn, hasToken, checkAuth, loadUserInfo, updateProfile, login, register, logout }
+  function promptApiKey() {
+    showApiKeyWarning.value = true
+  }
+
+  function dismissApiKeyWarning() {
+    showApiKeyWarning.value = false
+  }
+
+  return { guestName, userAvatar, userEmail, authChecked, isLoggedIn, hasToken, hasApiKey, apiBaseUrl, apiModel, showApiKeyWarning, checkAuth, loadUserInfo, updateProfile, login, register, logout, promptApiKey, dismissApiKeyWarning }
 })

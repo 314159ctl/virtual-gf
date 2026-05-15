@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     painting_api_key: str = ""
     painting_base_url: str = "https://ark.cn-beijing.volces.com/api/v3"
     painting_model: str = "doubao-seedream-4-5-251128"
+    painting_size: str = "2048x2048"
 
     # 数据库
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/virtual_gf"

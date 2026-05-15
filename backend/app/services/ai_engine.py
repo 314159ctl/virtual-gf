@@ -1,11 +1,36 @@
 """增强版 AI 对话引擎 — 动态提示词 + 情绪检测 + 记忆提取 + 角色生成"""
 
 import json
+import logging
 
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, AuthenticationError, RateLimitError, APIStatusError
 from typing import AsyncGenerator, Optional
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
+
+
+class AIError(Exception):
+    """AI 调用错误，包含可向前端展示的 code"""
+    def __init__(self, code: str, message: str):
+        self.code = code  # invalid_key / insufficient_balance / server_error / network_error
+        self.message = message
+        super().__init__(message)
+
+
+def _classify_openai_error(e: Exception) -> AIError:
+    """将 OpenAI SDK 异常转为 AIError"""
+    if isinstance(e, AuthenticationError):
+        return AIError("invalid_key", "API Key 无效，请检查是否填写正确")
+    if isinstance(e, RateLimitError):
+        return AIError("insufficient_balance", "API 余额不足或请求过于频繁，请稍后重试")
+    if isinstance(e, APIStatusError):
+        if e.status_code >= 500:
+            return AIError("server_error", f"AI 服务异常（{e.status_code}），请稍后重试")
+        if e.status_code == 402:
+            return AIError("insufficient_balance", "API 余额不足，请充值后重试")
+    return AIError("unknown", f"AI 调用失败: {str(e)[:100]}")
 
 
 PERSONALITY_GENERATION_PROMPT = """你是一个专业的虚拟角色设计师。用户会给你一段简短的角色描述，请你根据描述生成一个完整的、详细的角色人格设定。
@@ -37,27 +62,45 @@ PERSONALITY_GENERATION_PROMPT = """你是一个专业的虚拟角色设计师。
 - 内容要丰富生动，有细节感
 - 性格要有层次感，不要过于单一"""
 
+IMAGE_INTENT_PROMPT = """你是一个图片意图检测器。根据用户消息判断是否要求对方发照片/自拍/图片。
+
+判断标准：
+- 要求看照片、自拍、样子、分享图片、拍一张等 → wants_image: true
+- 消息以"[用户发了一张照片"开头 → 是分享而非要求，wants_image: false
+- 普通聊天 → wants_image: false
+- wants_image 为 true 时，生成英文图片描述（120字以内），包含外貌、表情、场景、画质关键词
+- wants_image 为 false 时，image_prompt 为 null
+
+严格返回 JSON：
+{"wants_image": true/false, "image_prompt": "描述"或null}"""
+
+IMAGE_PROMPT_FORCED = """生成英文 AI 绘画描述（120字以内）：
+- 用户要看自拍/照片 → 描述角色外貌、表情、场景 + 画质词
+- 用户要看特定物体/场景（如蛋糕、日落）→ 直接描述该物体/场景
+- 务必简洁
+
+严格返回 JSON：
+{"wants_image": true, "image_prompt": "描述"}"""
+
 
 class EnhancedAIEngine:
     """增强版 AI 引擎"""
 
-    def __init__(self):
-        self._client: AsyncOpenAI | None = None
+    def _get_client(self, api_key: str | None = None, base_url: str | None = None) -> AsyncOpenAI:
+        key = api_key or settings.deepseek_api_key
+        url = base_url or settings.deepseek_base_url
+        return AsyncOpenAI(api_key=key, base_url=url)
 
-    @property
-    def client(self) -> AsyncOpenAI:
-        if not self._client:
-            self._client = AsyncOpenAI(
-                api_key=settings.deepseek_api_key,
-                base_url=settings.deepseek_base_url,
-            )
-        return self._client
+    @staticmethod
+    def _get_model(api_model: str | None = None) -> str:
+        return api_model or settings.deepseek_model
 
-    async def generate_personality_profile(self, user_description: str) -> dict:
+    async def generate_personality_profile(self, user_description: str, api_key: str | None = None, api_base_url: str | None = None, api_model: str | None = None) -> dict:
         """根据用户描述 AI 生成完整角色人格"""
+        client = self._get_client(api_key, api_base_url)
         try:
-            response = await self.client.chat.completions.create(
-                model=settings.deepseek_model,
+            response = await client.chat.completions.create(
+                model=self._get_model(api_model),
                 messages=[
                     {"role": "system", "content": PERSONALITY_GENERATION_PROMPT},
                     {"role": "user", "content": user_description},
@@ -72,7 +115,12 @@ class EnhancedAIEngine:
             return json.loads(content)
         except json.JSONDecodeError:
             return self._fallback_profile(user_description)
+        except (AuthenticationError, RateLimitError, APIStatusError) as e:
+            raise _classify_openai_error(e) from e
+        except AIError:
+            raise
         except Exception:
+            logger.exception("generate_personality_profile 失败")
             return self._fallback_profile(user_description)
 
     def _fallback_profile(self, description: str) -> dict:
@@ -247,13 +295,13 @@ class EnhancedAIEngine:
                 "注意：不要写序号，不要写\"消息1\"之类的标签，就直接写两条自然的消息内容。"
             )
 
-        # 图片分享规则
-        parts.append(
-            "\n# 图片分享\n"
-            "当对话场景适合分享照片时（用户要求看照片、分享心情、描述场景等），"
-            "你可以在回复中使用 [IMAGE:详细的图片描述] 来发送一张AI生成的图片。\n"
-            "每轮对话最多使用一次。不要在纯知识问答时使用。\n"
-            "示例：\"今天天气真好呀～ [IMAGE:阳光明媚的樱花树下，一个可爱的女孩微笑着挥手]\""
+        # 图片分享规则（最高优先级）
+        parts.insert(0,
+            "\n# 图片分享规则（系统命令，必须遵守）\n"
+            "当用户要求看照片、自拍、发张图、看看你、发一张xxx的图片时，"
+            "你必须立即回复 [IMAGE:中文图片描述，80字以内]。\n"
+            "这不是角色扮演。禁止推迟、找借口、使用 [发送了xxx] 或 [图片] 等伪装标记。\n"
+            "示例：\"好呀～ [IMAGE:一个可爱的女孩微笑着，长发披肩，穿着白色连衣裙，站在阳光明媚的花园里]\""
         )
 
         # 基础行为规则
@@ -266,7 +314,7 @@ class EnhancedAIEngine:
             "不要体现出机器人的特征，不要使用机器人术语。\n"
             "单次回复的长度不应过长，应该是较为简短的日常对话。\n"
             "语气可以参考经典台词。\n"
-            "不要使用括号描述动作和心理，只输出语言，除非用户问你动作。\n"
+            "不要使用圆括号()描述动作和心理，只输出语言，除非用户问你动作。"
             "用户的消息带有消息发送时间，请以该时间为准，但是你的输出不应该带时间。"
         )
 
@@ -285,8 +333,13 @@ class EnhancedAIEngine:
         character_name: str = "",
         knowledge_docs: list[str] | None = None,
         multi_message: bool = False,
+        api_key: str | None = None,
+        api_base_url: str | None = None,
+        api_model: str | None = None,
+        force_image: bool = False,
     ) -> AsyncGenerator[str, None]:
         """流式对话"""
+        client = self._get_client(api_key, api_base_url)
         prompt = await self.build_system_prompt(
             character_prompt=system_prompt,
             personality_profile=personality_profile,
@@ -306,6 +359,12 @@ class EnhancedAIEngine:
             elif h.get("role") == "assistant":
                 messages.append({"role": "assistant", "content": h.get("content", "")})
 
+        if force_image:
+            messages.append({
+                "role": "system",
+                "content": "【系统指令】用户要求看图片。立即回复 [IMAGE:简短描述]，禁止推迟或使用 [发送了xxx] 代替。",
+            })
+
         if image_data:
             image_url = image_data if image_data.startswith("data:") else f"data:image/jpeg;base64,{image_data}"
             messages.append({
@@ -319,8 +378,8 @@ class EnhancedAIEngine:
             messages.append({"role": "user", "content": user_message})
 
         try:
-            response = await self.client.chat.completions.create(
-                model=settings.deepseek_model,
+            response = await client.chat.completions.create(
+                model=self._get_model(api_model),
                 messages=messages,
                 max_tokens=settings.deepseek_max_token,
                 temperature=settings.deepseek_temperature,
@@ -331,25 +390,28 @@ class EnhancedAIEngine:
                     delta = chunk.choices[0].delta
                     if delta and delta.content:
                         yield delta.content
-        except Exception:
-            import logging
-            logger = logging.getLogger(__name__)
+        except (AuthenticationError, RateLimitError, APIStatusError) as e:
+            ai_err = _classify_openai_error(e)
+            logger.warning(f"AI 调用失败 [{ai_err.code}]: {ai_err.message}")
+            yield f"\n\n[AI_ERROR:{ai_err.code}]{ai_err.message}"
+        except Exception as e:
             logger.exception("AI 对话生成失败")
-            yield "\n\n[生成回复时出现错误，请稍后重试]"
+            yield "\n\n[AI_ERROR:unknown]AI 调用失败，请稍后重试"
 
-    async def summarize_conversation(self, messages: list[dict]) -> str:
+    async def summarize_conversation(self, messages: list[dict], api_key: str | None = None, api_base_url: str | None = None, api_model: str | None = None) -> str:
         """用 AI 总结对话历史，用于压缩上下文"""
         if not messages:
             return ""
 
+        client = self._get_client(api_key, api_base_url)
         text = "\n".join(
             f"{'用户' if m.get('role') == 'user' else 'AI'}: {m.get('content', '')[:200]}"
             for m in messages[-30:]
         )
 
         try:
-            response = await self.client.chat.completions.create(
-                model=settings.deepseek_model,
+            response = await client.chat.completions.create(
+                model=self._get_model(api_model),
                 messages=[
                     {"role": "system", "content": "请用200字以内总结以下对话的关键信息和重要事实，保留用户提到的个人偏好、重要事件和关系变化。"},
                     {"role": "user", "content": text},
@@ -358,14 +420,19 @@ class EnhancedAIEngine:
                 temperature=0.3,
             )
             return response.choices[0].message.content or ""
+        except (AuthenticationError, RateLimitError, APIStatusError) as e:
+            ai_err = _classify_openai_error(e)
+            logger.warning(f"对话摘要失败 [{ai_err.code}]: {ai_err.message}")
+            return ""
         except Exception:
             return ""
 
-    async def detect_emotion(self, text: str) -> dict:
+    async def detect_emotion(self, text: str, api_key: str | None = None, api_base_url: str | None = None, api_model: str | None = None) -> dict:
         """检测用户消息的情感"""
+        client = self._get_client(api_key, api_base_url)
         try:
-            response = await self.client.chat.completions.create(
-                model=settings.deepseek_model,
+            response = await client.chat.completions.create(
+                model=self._get_model(api_model),
                 messages=[
                     {"role": "system", "content": "分析以下消息的情感。返回 JSON: {\"primary\": \"开心/难过/生气/焦虑/平静/期待/其他\", \"intensity\": 1-10, \"valence\": -1到1的值}"},
                     {"role": "user", "content": text},
@@ -376,22 +443,95 @@ class EnhancedAIEngine:
             content = response.choices[0].message.content or "{}"
             content = content.strip().removeprefix("```json").removesuffix("```").strip()
             return json.loads(content)
+        except (AuthenticationError, RateLimitError, APIStatusError) as e:
+            ai_err = _classify_openai_error(e)
+            logger.warning(f"情绪检测失败 [{ai_err.code}]: {ai_err.message}")
+            return {"primary": "平静", "intensity": 5, "valence": 0.0}
         except Exception:
             return {"primary": "平静", "intensity": 5, "valence": 0.0}
 
-    async def extract_memories(self, messages: list[dict]) -> list[str]:
+    async def detect_image_intent(
+        self,
+        user_message: str,
+        conversation_history: list[dict],
+        character_name: str = "",
+        personality_profile: dict | None = None,
+        api_key: str | None = None,
+        api_base_url: str | None = None,
+        api_model: str | None = None,
+        force_image: bool = False,
+    ) -> dict:
+        """检测用户是否请求图片（锁定 prompt，不受角色系统提示词影响），与主 AI 调用并行执行"""
+        client = self._get_client(api_key, api_base_url)
+
+        context_parts = []
+        if character_name and personality_profile:
+            appearance = personality_profile.get("appearance", "")
+            if appearance:
+                context_parts.append(f"角色「{character_name}」的外貌：{appearance}")
+        if conversation_history:
+            recent = conversation_history[-10:]
+            context_parts.append("最近对话：")
+            for h in recent:
+                role_label = "用户" if h.get("role") == "user" else "AI"
+                content = h.get("content", "")[:200]
+                context_parts.append(f"{role_label}: {content}")
+
+        context_text = "\n".join(context_parts) if context_parts else "（无上下文）"
+
+        # 关键词已命中 → 使用强制生图 Prompt，跳过意图判断
+        system_prompt = IMAGE_PROMPT_FORCED if force_image else IMAGE_INTENT_PROMPT
+
+        try:
+            response = await client.chat.completions.create(
+                model=self._get_model(api_model),
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": f"上下文：\n{context_text}\n\n用户最后一条消息：\n{user_message}"},
+                ],
+                max_tokens=600,
+                temperature=0.3,
+            )
+            raw_content = response.choices[0].message.content or "{}"
+            logger.info(f"[IMAGE DETECT] force_image={force_image}, raw response: {raw_content[:200]}")
+            content = raw_content.strip().removeprefix("```json").removesuffix("```").strip()
+            result = json.loads(content)
+            logger.info(f"[IMAGE DETECT] parsed result: wants_image={result.get('wants_image')}, has_prompt={bool(result.get('image_prompt'))}")
+            return result
+        except json.JSONDecodeError:
+            # JSON 解析失败时，尝试从截断文本中提取 image_prompt
+            if force_image:
+                import re as re_mod
+                match = re_mod.search(r'"image_prompt"\s*:\s*"([^"]*)', raw_content)
+                if match:
+                    prompt = match.group(1).strip()
+                    if prompt:
+                        logger.info(f"[IMAGE DETECT] Extracted prompt from truncated JSON: {prompt[:80]}")
+                        return {"wants_image": True, "image_prompt": prompt}
+            logger.warning(f"[IMAGE DETECT] JSON decode failed")
+            return {"wants_image": False, "image_prompt": None}
+        except (AuthenticationError, RateLimitError, APIStatusError) as e:
+            ai_err = _classify_openai_error(e)
+            logger.warning(f"图片意图检测失败 [{ai_err.code}]: {ai_err.message}")
+            return {"wants_image": False, "image_prompt": None}
+        except Exception:
+            logger.exception("图片意图检测异常")
+            return {"wants_image": False, "image_prompt": None}
+
+    async def extract_memories(self, messages: list[dict], api_key: str | None = None, api_base_url: str | None = None, api_model: str | None = None) -> list[str]:
         """从对话中自动提取关键记忆"""
         if len(messages) < 6:
             return []
 
+        client = self._get_client(api_key, api_base_url)
         text = "\n".join(
             f"{'用户' if m.get('role') == 'user' else 'AI'}: {m.get('content', '')[:150]}"
             for m in messages[-20:]
         )
 
         try:
-            response = await self.client.chat.completions.create(
-                model=settings.deepseek_model,
+            response = await client.chat.completions.create(
+                model=self._get_model(api_model),
                 messages=[
                     {"role": "system", "content": "从以下对话中提取关于「用户」的重要信息，每条一行，最多5条。只提取值得长期记住的事实（如姓名、年龄、职业、爱好、重要事件、关系变化等）。不要提取闲聊内容。"},
                     {"role": "user", "content": text},
@@ -401,11 +541,16 @@ class EnhancedAIEngine:
             )
             content = response.choices[0].message.content or ""
             return [line.strip("- ").strip() for line in content.split("\n") if line.strip() and len(line) > 5]
+        except (AuthenticationError, RateLimitError, APIStatusError) as e:
+            ai_err = _classify_openai_error(e)
+            logger.warning(f"记忆提取失败 [{ai_err.code}]: {ai_err.message}")
+            return []
         except Exception:
             return []
 
-    async def analyze_chat_logs(self, chat_text: str, current_profile: dict | None = None) -> dict:
+    async def analyze_chat_logs(self, chat_text: str, current_profile: dict | None = None, api_key: str | None = None, api_base_url: str | None = None, api_model: str | None = None) -> dict:
         """分析聊天记录，重新生成完整的角色人格总览"""
+        client = self._get_client(api_key, api_base_url)
         text = chat_text[:8000] if len(chat_text) > 8000 else chat_text
 
         profile_str = json.dumps(current_profile, ensure_ascii=False, indent=2) if current_profile else "（无现有设定）"
@@ -440,8 +585,8 @@ class EnhancedAIEngine:
         )
 
         try:
-            response = await self.client.chat.completions.create(
-                model=settings.deepseek_model,
+            response = await client.chat.completions.create(
+                model=self._get_model(api_model),
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": f"现有设定：\n{profile_str}\n\n聊天记录：\n{text}"},
@@ -462,6 +607,10 @@ class EnhancedAIEngine:
             return {
                 "enhanced_profile": current_profile or {},
             }
+        except (AuthenticationError, RateLimitError, APIStatusError) as e:
+            raise _classify_openai_error(e) from e
+        except AIError:
+            raise
         except Exception:
             return {
                 "enhanced_profile": current_profile or {},

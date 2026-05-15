@@ -44,3 +44,4 @@ frontend/.vite/
 *.pem
 *.key
 avatars/
+backend/app/static/generated/

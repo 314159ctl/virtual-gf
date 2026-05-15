@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import api, { uploadApi } from '@/utils/http'
+import { useAuthStore } from '@/stores/auth'
 import type { Character, Conversation, Message, Memory } from '@/types/models'
 
 export const useChatStore = defineStore('chat', () => {
@@ -71,6 +72,16 @@ export const useChatStore = defineStore('chat', () => {
     await loadMessages()
     await loadMemories(characterId)
     connectWebSocket()
+
+    // 检测中断：最后一条是用户发的但没收到 AI 回复 → 自动重发
+    const msgs = messages.value
+    if (msgs.length > 0 && msgs[msgs.length - 1].role === 'user') {
+      const last = msgs.pop()!
+      // 延迟一小段等 WebSocket 连上
+      setTimeout(() => {
+        sendMessage(last.content, last.metadata?.image_base64)
+      }, 600)
+    }
   }
 
   async function createCharacter(data: {
@@ -109,6 +120,14 @@ export const useChatStore = defineStore('chat', () => {
       form.append('file', file)
       await uploadApi.post(`/characters/${characterId}/documents`, form)
     }
+  }
+
+  async function updateCharacter(id: string, data: { name?: string; description?: string; system_prompt?: string; personality_profile?: Record<string, any> | null }) {
+    const res = await api.patch<Character>(`/characters/${id}`, data)
+    const idx = characters.value.findIndex(c => c.id === id)
+    if (idx >= 0) characters.value[idx] = res.data
+    if (currentCharacter.value?.id === id) currentCharacter.value = res.data
+    return res.data
   }
 
   async function deleteCharacter(id: string) {
@@ -240,6 +259,26 @@ export const useChatStore = defineStore('chat', () => {
           emotion_label: null,
           created_at: new Date().toISOString(),
         })
+      } else if (data.type === 'ai_error') {
+        isStreaming.value = false
+        streamingContent.value = ''
+        streamingComplete.value = false
+        const errorMessages: Record<string, string> = {
+          invalid_key: 'API Key 无效，请前往个人中心重新设置',
+          insufficient_balance: 'API 余额不足，请充值或更换 Key',
+          server_error: 'AI 服务暂时异常，请稍后重试',
+          unknown: 'AI 调用失败，请稍后重试',
+        }
+        const msg = errorMessages[data.code] || data.message || 'AI 调用失败'
+        messages.value.push({
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: msg,
+          content_type: 'text',
+          metadata: { error_code: data.code },
+          emotion_label: null,
+          created_at: new Date().toISOString(),
+        })
       } else if (data.type === 'error') {
         isStreaming.value = false
         streamingContent.value = ''
@@ -286,6 +325,11 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   function sendMessage(text: string, image?: string | null) {
+    const auth = useAuthStore()
+    if (!auth.hasApiKey) {
+      auth.promptApiKey()
+      return
+    }
     // 先将用户消息立即显示在 UI
     messages.value.push({
       id: crypto.randomUUID(),
@@ -348,7 +392,7 @@ export const useChatStore = defineStore('chat', () => {
     loadCharacters, selectCharacter, createCharacter, generateCharacterProfile,
     analyzeChatLogs, uploadCharacterDocuments,
     loadMessages, sendMessage, connectWebSocket, disconnectWebSocket, uploadAvatar,
-    deleteCharacter, loadMemories, updateMemory, deleteMemory,
+    updateCharacter, deleteCharacter, loadMemories, updateMemory, deleteMemory,
     consolidating, consolidateMemories,
   }
 })

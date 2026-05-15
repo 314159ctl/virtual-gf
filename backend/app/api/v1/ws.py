@@ -21,7 +21,7 @@ from app.models.character import Character
 from app.models.character_document import CharacterDocument
 from app.models.memory import LongTermMemory
 from app.core.config import settings
-from app.core.security import decode_token
+from app.core.security import decode_token, decrypt_api_key
 from app.services.ai_engine import EnhancedAIEngine
 from app.services.memory_service import consolidate_memories
 
@@ -33,6 +33,14 @@ MEMORY_CONSOLIDATE_INTERVAL = 20
 SUMMARY_INTERVAL = 30
 # 匹配 [IMAGE:xxx] / [image:xxx] / [IMAGE：xxx]（大小写不敏感+中英文冒号）
 IMAGE_RE = re.compile(r'\[[Ii][Mm][Aa][Gg][Ee][：:](.*?)\]')
+# 匹配 AI 假装发图的文字标记：[发送了...] / [已发送...] / [图片N张] 等
+FAKE_SEND_RE = re.compile(r'\[(?:发送了|已发送|图片)[^\]]*\]')
+# 用户要求图片的关键词
+IMAGE_REQUEST_KW = re.compile(
+    r'发.*(?:照片|图片|自拍|图|张)|'
+    r'(?:照片|图片|自拍|爆照).*发|'
+    r'看看你|发一张|来一张|拍一张|拍个照|拍张'
+)
 
 
 class ConnectionManager:
@@ -53,6 +61,33 @@ manager = ConnectionManager()
 engine = EnhancedAIEngine()
 
 
+def _maybe_generate_image(raw_reply: str, force_image: bool, user_message: str,
+                          history: list, character_name: str, personality_profile: dict | None,
+                          conversation_id: str, api_key: str | None, api_base_url: str | None,
+                          api_model: str | None) -> asyncio.Task | None:
+    """从 AI 回复中提取 [IMAGE:xxx] 或触发兜底生图，返回 Task 或 None"""
+    m = IMAGE_RE.search(raw_reply)
+    if m:
+        prompt = m.group(1).strip()
+        if prompt:
+            return asyncio.create_task(_generate_image(conversation_id, prompt))
+        return None
+    if not force_image:
+        return None
+
+    async def _fallback():
+        intent = await engine.detect_image_intent(
+            user_message=user_message, conversation_history=history,
+            character_name=character_name, personality_profile=personality_profile,
+            api_key=api_key, api_base_url=api_base_url, api_model=api_model,
+            force_image=True,
+        )
+        prompt = intent.get("image_prompt") if intent.get("wants_image") else None
+        return await _generate_image(conversation_id, prompt or user_message)
+
+    return asyncio.create_task(_fallback())
+
+
 async def _load_context(db, conversation_id: str, user_id: str):
     """加载对话上下文：角色、历史、记忆、情绪、摘要"""
     conv_result = await db.execute(
@@ -68,17 +103,20 @@ async def _load_context(db, conversation_id: str, user_id: str):
     )
     char = char_result.scalar_one_or_none()
 
-    # 加载历史消息
+    # 加载历史消息（过滤 [图片] 占位符，防止 AI 模仿）
     msg_result = await db.execute(
         select(Message)
         .where(Message.conversation_id == uuid.UUID(conversation_id))
         .order_by(Message.created_at.desc())
         .limit(20)
     )
-    history = [
-        {"role": m.role, "content": m.content}
-        for m in reversed(msg_result.scalars().all())
-    ]
+    history = []
+    for m in reversed(msg_result.scalars().all()):
+        content = m.content
+        content = FAKE_SEND_RE.sub("", content).strip()
+        if not content:
+            content = "[图片消息]"
+        history.append({"role": m.role, "content": content})
 
     # 加载长期记忆
     mem_result = await db.execute(
@@ -112,10 +150,10 @@ async def _load_context(db, conversation_id: str, user_id: str):
     }
 
 
-async def _detect_and_update_emotion(db, conv, user_message: str):
+async def _detect_and_update_emotion(db, conv, user_message: str, api_key: str | None = None, api_base_url: str | None = None, api_model: str | None = None):
     """检测情绪并更新对话状态"""
     try:
-        emotion = await engine.detect_emotion(user_message)
+        emotion = await engine.detect_emotion(user_message, api_key=api_key, api_base_url=api_base_url, api_model=api_model)
         conv.emotion_state = emotion
         await db.flush()
         return emotion
@@ -124,7 +162,7 @@ async def _detect_and_update_emotion(db, conv, user_message: str):
 
 
 
-async def _maybe_summarize(db, conv, conversation_id: str):
+async def _maybe_summarize(db, conv, conversation_id: str, api_key: str | None = None, api_base_url: str | None = None, api_model: str | None = None):
     """如果消息数量达到阈值，生成对话摘要"""
     if conv.message_count > 0 and conv.message_count % SUMMARY_INTERVAL == 0:
         try:
@@ -138,7 +176,7 @@ async def _maybe_summarize(db, conv, conversation_id: str):
                 {"role": m.role, "content": m.content}
                 for m in reversed(msg_result.scalars().all())
             ]
-            summary = await engine.summarize_conversation(recent)
+            summary = await engine.summarize_conversation(recent, api_key=api_key, api_base_url=api_base_url, api_model=api_model)
             if summary:
                 conv.summary = summary
                 await db.flush()
@@ -185,16 +223,17 @@ def _split_messages(text: str) -> list[str]:
 
 
 async def _check_image_cooldown(db, conversation_id: uuid.UUID) -> bool:
-    """检查最近5分钟内是否已生成过图片"""
-    cutoff = datetime.now(timezone.utc) - timedelta(minutes=5)
-    result = await db.execute(
-        select(func.count()).select_from(Message).where(
-            Message.conversation_id == conversation_id,
-            Message.content_type == "image",
-            Message.created_at >= cutoff,
-        )
-    )
-    return result.scalar() == 0
+    """检查最近5分钟内是否已生成过图片（临时取消限制）"""
+    return True  # 取消冷却限制
+    # cutoff = datetime.now(timezone.utc) - timedelta(minutes=5)
+    # result = await db.execute(
+    #     select(func.count()).select_from(Message).where(
+    #         Message.conversation_id == conversation_id,
+    #         Message.content_type == "image",
+    #         Message.created_at >= cutoff,
+    #     )
+    # )
+    # return result.scalar() == 0
 
 
 def _call_painting_api(prompt: str) -> dict | None:
@@ -207,7 +246,7 @@ def _call_painting_api(prompt: str) -> dict | None:
         "model": settings.painting_model,
         "prompt": prompt,
         "n": 1,
-        "size": "1920x1920",
+        "size": settings.painting_size,
     }
     try:
         resp = requests.post(
@@ -225,18 +264,23 @@ def _call_painting_api(prompt: str) -> dict | None:
 
 async def _generate_image(conversation_id: str, image_prompt: str) -> dict | None:
     """异步调绘画 API 生图，保存到数据库，返回 {url, prompt}"""
+    logger.info(f"[IMAGE GEN] Starting generation for conversation={conversation_id}, prompt={image_prompt[:80]}")
     async with AsyncSessionLocal() as db:
-        if not await _check_image_cooldown(db, uuid.UUID(conversation_id)):
+        can_generate = await _check_image_cooldown(db, uuid.UUID(conversation_id))
+        if not can_generate:
+            logger.info(f"[IMAGE GEN] Blocked by cooldown for conversation={conversation_id}")
             return None
         try:
+            logger.info(f"[IMAGE GEN] Calling painting API...")
             result = await asyncio.to_thread(_call_painting_api, image_prompt)
             if not result:
-                logger.warning(f"Image generation returned no result for prompt: {image_prompt[:100]}")
+                logger.warning(f"[IMAGE GEN] Painting API returned no result for prompt: {image_prompt[:100]}")
             if result:
+                logger.info(f"[IMAGE GEN] Painting API success, URL={result.get('url', '')[:80]}")
                 img_msg = Message(
                     conversation_id=uuid.UUID(conversation_id),
                     role="assistant",
-                    content=image_prompt,
+                    content="[图片]",
                     content_type="image",
                     metadata_={"image_url": result["url"], "prompt": image_prompt},
                 )
@@ -244,20 +288,21 @@ async def _generate_image(conversation_id: str, image_prompt: str) -> dict | Non
                 await db.flush()
                 await db.commit()
                 return result
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"[IMAGE GEN] Exception: {e}", exc_info=True)
     return None
 
 
 @router.websocket("/{conversation_id}")
 async def chat_websocket(websocket: WebSocket, conversation_id: str):
-    user_id = str(uuid.uuid4())  # 默认使用随机 guest ID
-    token_authenticated = False
+    user_id = str(uuid.uuid4())
+    user_api_key: str | None = None
+    user_api_base_url: str | None = None
+    user_api_model: str | None = None
 
     await websocket.accept()
 
     try:
-        # 首条消息：可选 JWT 认证
         raw = await asyncio.wait_for(websocket.receive_text(), timeout=15)
         msg = json.loads(raw)
 
@@ -267,9 +312,19 @@ async def chat_websocket(websocket: WebSocket, conversation_id: str):
                 uid = payload.get("sub")
                 if uid:
                     user_id = uid
-                    token_authenticated = True
+                    async with AsyncSessionLocal() as db:
+                        from app.models.user import User as UserModel
+                        user_result = await db.execute(
+                            select(UserModel).where(UserModel.id == uuid.UUID(user_id))
+                        )
+                        user_row = user_result.scalar_one_or_none()
+                        if user_row:
+                            if user_row.api_key_encrypted:
+                                user_api_key = decrypt_api_key(user_row.api_key_encrypted)
+                            user_api_base_url = user_row.api_base_url
+                            user_api_model = user_row.api_model
             except Exception:
-                pass  # token 无效，继续用 guest ID
+                pass
 
         manager.active[f"{user_id}:{conversation_id}"] = websocket
 
@@ -288,21 +343,26 @@ async def chat_websocket(websocket: WebSocket, conversation_id: str):
             if msg.get("type") == "chat":
                 user_message = msg.get("message", "")
                 image_data = msg.get("image")
+                logger.info(f"[CHAT] Received message: user_message={user_message[:80] if user_message else '(empty)'}, has_image={bool(image_data)}")
 
                 # 有图片时先调视觉模型识图
+                display_content = user_message or "[图片]"  # 用户消息气泡显示的内容
+                fallback_image = None
                 if image_data and settings.vision_enabled:
                     try:
                         description = await engine.describe_image(image_data)
                         user_message = f"[用户发了一张照片：{description}] 用户说：{user_message or '看看这张图'}"
                     except Exception:
-                        user_message = user_message or "[图片]"
+                        # 豆包失败，直接把图发给 DeepSeek（多模态）
+                        user_message = user_message or "看看这张图"
+                        fallback_image = image_data
 
                 async with AsyncSessionLocal() as db:
-                    # 记录用户消息
+                    # 记录用户消息（只保存用户看到的文本，不保存 AI 识图上下文）
                     message = Message(
                         conversation_id=uuid.UUID(conversation_id),
                         role="user",
-                        content=user_message or "[图片]",
+                        content=display_content,
                         content_type="image" if image_data else "text",
                         metadata_={"image_base64": image_data} if image_data else None,
                     )
@@ -326,7 +386,7 @@ async def chat_websocket(websocket: WebSocket, conversation_id: str):
 
                     # 情绪检测（异步，不阻塞回复）
                     emotion_task = asyncio.create_task(
-                        _detect_and_update_emotion(db, conv, user_message)
+                        _detect_and_update_emotion(db, conv, user_message, user_api_key, user_api_base_url, user_api_model)
                     )
 
                     # 提取角色信息
@@ -340,12 +400,13 @@ async def chat_websocket(websocket: WebSocket, conversation_id: str):
                 multi = random.random() < 0.35
 
                 raw_full_reply = ""
+                force_image = bool(IMAGE_REQUEST_KW.search(user_message))
 
                 async for chunk in engine.chat_stream(
                     system_prompt=system_prompt,
                     history=history,
                     user_message=user_message,
-                    image_data=None,
+                    image_data=fallback_image,
                     personality_profile=personality_profile,
                     emotion_state=conv.emotion_state,
                     memories=memories,
@@ -353,25 +414,41 @@ async def chat_websocket(websocket: WebSocket, conversation_id: str):
                     character_name=character_name,
                     knowledge_docs=knowledge_docs,
                     multi_message=multi,
+                    api_key=user_api_key,
+                    api_base_url=user_api_base_url,
+                    api_model=user_api_model,
+                    force_image=force_image,
                 ):
                     raw_full_reply += chunk
 
-                # 检测并提取 [IMAGE:xxx] 标记
-                image_task = None
-                m = IMAGE_RE.search(raw_full_reply)
-                if m:
-                    image_prompt = m.group(1).strip()
-                    if image_prompt:
-                        image_task = asyncio.create_task(
-                            _generate_image(conversation_id, image_prompt)
-                        )
+                logger.info(f"[CHAT] Stream ended, reply_len={len(raw_full_reply)}")
 
-                # 清理文本（移除 [IMAGE:xxx] 标记）
-                full_reply = IMAGE_RE.sub("", raw_full_reply).strip()
+                # 检测 AI 错误标记
+                err_match = re.search(r'\[AI_ERROR:(\w+)\](.*)', raw_full_reply)
+                if err_match:
+                    err_code = err_match.group(1)
+                    err_message = err_match.group(2).strip()
+                    await websocket.send_text(json.dumps({
+                        "type": "ai_error",
+                        "code": err_code,
+                        "message": err_message,
+                    }))
+                    continue
+
+                # 提取 [IMAGE:xxx] 标记或触发服务端兜底生图
+                image_task = _maybe_generate_image(
+                    raw_full_reply, force_image, user_message, history,
+                    character_name, personality_profile, conversation_id,
+                    user_api_key, user_api_base_url, user_api_model,
+                )
+
+                # 清理文本（移除 [IMAGE:xxx] 和 [发送了...] 伪装标记）
+                full_reply = IMAGE_RE.sub("", raw_full_reply)
+                full_reply = FAKE_SEND_RE.sub("", full_reply).strip()
+                full_reply = re.sub(r'\n{3,}', '\n\n', full_reply)  # 移除多余空行
                 if not full_reply:
                     full_reply = "[图片]"
 
-                # 等待情绪检测和生图任务完成（并行等待）
                 tasks = [emotion_task]
                 if image_task:
                     tasks.append(image_task)
@@ -407,16 +484,24 @@ async def chat_websocket(websocket: WebSocket, conversation_id: str):
                         conv.message_count = (conv.message_count or 0) + 1
 
                         if conv.message_count % SUMMARY_INTERVAL == 0:
-                            asyncio.create_task(_maybe_summarize(db, conv, conversation_id))
+                            asyncio.create_task(_maybe_summarize(db, conv, conversation_id, user_api_key, user_api_base_url, user_api_model))
 
                     if conv and conv.message_count % MEMORY_CONSOLIDATE_INTERVAL == 0:
                         asyncio.create_task(
-                            consolidate_memories(str(conv.character_id), user_id, db)
+                            consolidate_memories(str(conv.character_id), user_id, db, user_api_key, user_api_base_url, user_api_model)
                         )
 
                     await db.commit()
 
-                # 发送 done 事件：第一条（已流式展示 + 可能的图片），后续逐条模拟流式
+                # 发送图片事件（独立气泡，先于文字，只展示图片不展示文字）
+                if image_result:
+                    await websocket.send_json({
+                        "type": "image",
+                        "url": image_result["url"],
+                        "prompt": "",
+                    })
+
+                # 发送 done 事件：第一条（已流式展示），后续逐条模拟流式
                 for i, part in enumerate(msg_parts):
                     if i == 0:
                         done_msg = {
@@ -424,15 +509,10 @@ async def chat_websocket(websocket: WebSocket, conversation_id: str):
                             "full_reply": part,
                             "emotion_state": conv.emotion_state,
                         }
-                        if image_result:
-                            done_msg["image_url"] = image_result["url"]
-                            done_msg["image_prompt"] = image_result["prompt"]
                         await websocket.send_json(done_msg)
                     else:
-                        # 模拟真人连续发消息的自然间隔
                         delay = 1.8 + random.uniform(0, 2.5)
                         await asyncio.sleep(delay)
-                        # 逐字流式输出
                         for j in range(0, len(part), 2):
                             await websocket.send_json({
                                 "type": "chunk",

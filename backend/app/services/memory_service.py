@@ -20,12 +20,12 @@ MAX_MEMORIES_PER_CHARACTER = 30
 CONSOLIDATE_MIN_MESSAGES = 12
 
 
-def _build_ai_client():
+def _build_ai_client(api_key: str | None = None, api_base_url: str | None = None, api_model: str | None = None):
     from openai import AsyncOpenAI
     return AsyncOpenAI(
-        api_key=settings.deepseek_api_key,
-        base_url=settings.deepseek_base_url,
-    )
+        api_key=api_key or settings.deepseek_api_key,
+        base_url=api_base_url or settings.deepseek_base_url,
+    ), (api_model or settings.deepseek_model)
 
 
 async def _get_unlinked_messages(
@@ -72,7 +72,7 @@ async def _get_unlinked_messages(
 
 
 async def consolidate_memories(
-    character_id: str, user_id: str, db: AsyncSession
+    character_id: str, user_id: str, db: AsyncSession, api_key: str | None = None, api_base_url: str | None = None, api_model: str | None = None
 ) -> dict:
     """将短期记忆（未总结的消息）合并为长期记忆"""
     from uuid import UUID
@@ -95,7 +95,7 @@ async def consolidate_memories(
         log_lines.append(f"[{speaker}] {m.content}")
     full_log = "\n".join(log_lines)
 
-    client = _build_ai_client()
+    client, model = _build_ai_client(api_key, api_base_url, api_model)
 
     # Step 1: AI 以角色视角总结
     summary_prompt = (
@@ -105,7 +105,7 @@ async def consolidate_memories(
     )
     try:
         resp = await client.chat.completions.create(
-            model=settings.deepseek_model,
+            model=model,
             messages=[{"role": "user", "content": summary_prompt}],
             max_tokens=400,
             temperature=0.5,
@@ -125,7 +125,7 @@ async def consolidate_memories(
     )
     try:
         resp = await client.chat.completions.create(
-            model=settings.deepseek_model,
+            model=model,
             messages=[{"role": "user", "content": importance_prompt}],
             max_tokens=10,
             temperature=0.1,

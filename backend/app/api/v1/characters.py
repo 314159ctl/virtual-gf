@@ -7,7 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, 
 from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_optional_user
+from app.core.dependencies import get_optional_user, get_current_user
+from app.core.security import decrypt_api_key
 from app.db.session import get_db
 from app.models.character import Character
 from app.models.character_document import CharacterDocument
@@ -18,7 +19,7 @@ from app.schemas.character import (
     ChatAnalysisRequest, ChatAnalysisResponse,
     CharacterDocumentOut,
 )
-from app.services.ai_engine import EnhancedAIEngine
+from app.services.ai_engine import EnhancedAIEngine, AIError
 
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 ALLOWED_TYPES = {"text/plain", "text/markdown", "application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"}
@@ -130,22 +131,34 @@ DEFAULT_CHARACTER_PROMPT = """# 角色设定
 @router.post("/generate", response_model=CharacterGenerateResponse)
 async def generate_character(
     data: CharacterGenerateRequest,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
 ):
     """AI 一键生成角色人格"""
     engine = EnhancedAIEngine()
-    profile = await engine.generate_personality_profile(data.user_description)
+    api_key = decrypt_api_key(current_user.api_key_encrypted) if current_user.api_key_encrypted else None
+    api_base_url = current_user.api_base_url
+    api_model = current_user.api_model
+    try:
+        profile = await engine.generate_personality_profile(data.user_description, api_key=api_key, api_base_url=api_base_url, api_model=api_model)
+    except AIError as e:
+        raise HTTPException(status_code=402 if e.code == "insufficient_balance" else 400, detail=e.message)
     return CharacterGenerateResponse(personality_profile=profile)
 
 
 @router.post("/analyze-chat", response_model=ChatAnalysisResponse)
 async def analyze_chat_logs(
     data: ChatAnalysisRequest,
-    current_user: User | None = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
 ):
     """AI 分析聊天记录，提取人格特征"""
     engine = EnhancedAIEngine()
-    result = await engine.analyze_chat_logs(data.chat_text, data.current_profile)
+    api_key = decrypt_api_key(current_user.api_key_encrypted) if current_user.api_key_encrypted else None
+    api_base_url = current_user.api_base_url
+    api_model = current_user.api_model
+    try:
+        result = await engine.analyze_chat_logs(data.chat_text, data.current_profile, api_key=api_key, api_base_url=api_base_url, api_model=api_model)
+    except AIError as e:
+        raise HTTPException(status_code=402 if e.code == "insufficient_balance" else 400, detail=e.message)
     return ChatAnalysisResponse(**result)
 
 

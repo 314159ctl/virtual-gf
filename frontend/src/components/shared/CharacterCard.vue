@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { Camera, Trash2 } from 'lucide-vue-next'
+import { useRouter } from 'vue-router'
+import { Camera, Trash2, Edit3 } from 'lucide-vue-next'
 import type { Character } from '@/types/models'
 import { useChatStore } from '@/stores/chat'
 
@@ -13,6 +14,7 @@ const emit = defineEmits<{
   deleteRequest: []
 }>()
 
+const router = useRouter()
 const chat = useChatStore()
 const fileInput = ref<HTMLInputElement | null>(null)
 const uploading = ref(false)
@@ -90,7 +92,12 @@ async function onFileChange(e: Event) {
       />
     </div>
     <div class="card-info" @click="emit('select')">
-      <h3 class="card-name">{{ character.name }}</h3>
+      <div class="card-name-row">
+        <h3 class="card-name">{{ character.name }}</h3>
+        <button class="edit-btn" @click.stop="router.push(`/character/${character.id}/edit`)" title="微调人设">
+          <Edit3 :size="14" />
+        </button>
+      </div>
       <p class="card-desc">{{ character.description || '等待与你相遇...' }}</p>
       <div v-if="tags.length" class="card-tags">
         <span v-for="tag in tags" :key="tag" class="tag">{{ tag }}</span>
@@ -205,12 +212,35 @@ async function onFileChange(e: Event) {
   padding: 14px 16px;
   cursor: pointer;
 }
+.card-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 .card-name {
   font-family: var(--font-heading);
   font-size: var(--text-base);
   font-weight: 600;
   color: var(--color-text);
   margin-bottom: 4px;
+  flex: 1;
+  min-width: 0;
+}
+.edit-btn {
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  border: none;
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  border-radius: var(--radius-xs);
+  flex-shrink: 0;
+  transition: all var(--duration-fast);
+}
+.edit-btn:hover {
+  color: var(--color-primary);
+  background: var(--color-primary-light);
 }
 .card-desc {
   font-size: var(--text-xs);
