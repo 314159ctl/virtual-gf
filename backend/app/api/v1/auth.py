@@ -1,4 +1,4 @@
-"""认证 API — 注册 / 登录 / 刷新令牌"""
+"""认证 API — 注册 / 登录 / 刷新令牌 / 验证码"""
 
 from fastapi import APIRouter, Body, Depends, HTTPException, status
 from sqlalchemy import select
@@ -8,8 +8,15 @@ from app.core.security import create_access_token, create_refresh_token, decode_
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.user import TokenResponse, UserLogin, UserOut, UserRegister
+from app.services.captcha import generate_captcha, verify_captcha
 
 router = APIRouter()
+
+
+@router.get("/captcha")
+async def get_captcha():
+    """获取图形验证码"""
+    return generate_captcha()
 
 
 @router.post("/guest", response_model=TokenResponse)
@@ -68,6 +75,10 @@ async def register(data: UserRegister, db: AsyncSession = Depends(get_db)):
 @router.post("/login", response_model=TokenResponse)
 async def login(data: UserLogin, db: AsyncSession = Depends(get_db)):
     """登录，返回 JWT 令牌对"""
+    # 验证码校验
+    if not verify_captcha(data.captcha_id or "", data.captcha_code or ""):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="验证码错误或已过期")
+
     result = await db.execute(select(User).where(User.email == data.email))
     user = result.scalar_one_or_none()
 

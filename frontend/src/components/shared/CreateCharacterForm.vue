@@ -565,7 +565,7 @@ const expr = computed(() => profile.value.expression_style || {})
     <div class="api-key-dialog">
       <div class="dialog-icon">🔑</div>
       <h3>尚未设置 API Key</h3>
-      <p>需要配置自己的 DeepSeek API Key 才能使用 AI 对话、角色生成等功能。</p>
+      <p>需要配置自己的 API Key 才能使用 AI 对话、角色生成等功能。</p>
       <div class="dialog-actions">
         <button class="dialog-btn cancel" @click="auth.dismissApiKeyWarning()">稍后再说</button>
         <button class="dialog-btn confirm" @click="auth.dismissApiKeyWarning()">我知道了</button>

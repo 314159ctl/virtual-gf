@@ -15,6 +15,8 @@ class UserRegister(BaseModel):
 class UserLogin(BaseModel):
     email: str
     password: str
+    captcha_id: str | None = None
+    captcha_code: str | None = None
 
 
 class TokenResponse(BaseModel):

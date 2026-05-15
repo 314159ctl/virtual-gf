@@ -16,8 +16,12 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
+from app.services.system_config import load_system_config
 
 logger = logging.getLogger(__name__)
+
+# 加载持久化的系统配置
+load_system_config()
 
 
 @asynccontextmanager

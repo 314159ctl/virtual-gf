@@ -286,7 +286,7 @@ async function testConnection() {
           </div>
           <ChevronRight :size="18" class="chevron" :class="{ open: showApiKey }" />
         </div>
-        <p class="mem-entry-hint">设置你的 DeepSeek API Key，不设置则无法使用 AI 功能</p>
+        <p class="mem-entry-hint">设置你的 API Key，不设置则无法使用 AI 功能</p>
 
         <div v-if="showApiKey" class="api-key-panel" @click.stop>
           <!-- Key 设置 -->

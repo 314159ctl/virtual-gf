@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { Sparkles } from 'lucide-vue-next'
+import { Sparkles, RefreshCw } from 'lucide-vue-next'
+import api from '@/utils/http'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -10,6 +11,24 @@ const auth = useAuthStore()
 const tab = ref<'login' | 'register'>('login')
 const loading = ref(false)
 const error = ref('')
+
+// 验证码
+const captchaId = ref('')
+const captchaCode = ref('')
+const captchaImage = ref('')
+
+async function loadCaptcha() {
+  try {
+    const res = await api.get<{ captcha_id: string; captcha_image: string }>('/auth/captcha')
+    captchaId.value = res.data.captcha_id
+    captchaImage.value = res.data.captcha_image
+    captchaCode.value = ''
+  } catch {
+    // ignore
+  }
+}
+
+onMounted(loadCaptcha)
 
 // 登录表单
 const loginEmail = ref('')
@@ -37,10 +56,11 @@ async function doLogin() {
   error.value = ''
   loading.value = true
   try {
-    await auth.login(loginEmail.value.trim(), loginPassword.value)
+    await auth.login(loginEmail.value.trim(), loginPassword.value, captchaId.value, captchaCode.value)
     router.replace('/')
   } catch (e: any) {
     error.value = e?.response?.data?.detail || e?.message || '登录失败，请重试'
+    loadCaptcha()
   } finally {
     loading.value = false
   }
@@ -70,15 +90,6 @@ async function doRegister() {
         <h1 class="brand-text">恋爱对话模拟器</h1>
       </div>
 
-      <!-- Tabs -->
-      <div class="auth-tabs">
-        <button class="tab-btn" :class="{ active: tab === 'login' }" @click="switchTab('login')">
-          登录
-        </button>
-        <button class="tab-btn" :class="{ active: tab === 'register' }" @click="switchTab('register')">
-          注册
-        </button>
-      </div>
 
       <!-- Login Form -->
       <form v-if="tab === 'login'" class="auth-form" @submit.prevent="doLogin">
@@ -100,8 +111,26 @@ async function doRegister() {
             class="form-input"
             placeholder="请输入密码"
             autocomplete="current-password"
-            @keyup.enter="doLogin"
           />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">验证码</label>
+          <div class="captcha-row">
+            <img v-if="captchaImage" :src="captchaImage" class="captcha-img" alt="验证码" @click="loadCaptcha" title="点击刷新" />
+            <input
+              v-model="captchaCode"
+              type="text"
+              class="form-input captcha-input"
+              placeholder="输入验证码"
+              maxlength="4"
+              autocomplete="off"
+              @keyup.enter="doLogin"
+            />
+            <button type="button" class="captcha-refresh" @click="loadCaptcha" title="刷新验证码">
+              <RefreshCw :size="14" />
+            </button>
+          </div>
         </div>
 
         <p v-if="error" class="error-msg">{{ error }}</p>
@@ -184,7 +213,9 @@ async function doRegister() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--color-bg);
+  background:
+    linear-gradient(rgba(255, 240, 245, 0.88), rgba(255, 220, 235, 0.9)),
+    url('/bg.png') center / cover no-repeat;
   padding: 24px;
 }
 
@@ -213,32 +244,6 @@ async function doRegister() {
   font-weight: 700;
   color: var(--color-primary-dark);
   letter-spacing: 2px;
-}
-
-/* Tabs */
-.auth-tabs {
-  display: flex;
-  gap: 0;
-  margin-bottom: 20px;
-  border-bottom: 2px solid var(--color-border);
-}
-.tab-btn {
-  flex: 1;
-  padding: 8px 0;
-  border: none;
-  background: transparent;
-  font-size: var(--text-sm);
-  font-family: var(--font-heading);
-  font-weight: 600;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -2px;
-  transition: all var(--duration-fast) var(--ease-smooth);
-}
-.tab-btn.active {
-  color: var(--color-primary);
-  border-bottom-color: var(--color-primary);
 }
 
 /* Form */
@@ -344,5 +349,42 @@ async function doRegister() {
 }
 .link-btn:hover {
   text-decoration: underline;
+}
+
+/* ── Captcha ── */
+.captcha-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.captcha-img {
+  height: 40px;
+  width: 110px;
+  border-radius: var(--radius-xs);
+  border: 1.5px solid var(--color-border);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.captcha-input {
+  flex: 1;
+  min-width: 0;
+}
+.captcha-refresh {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-xs);
+  border: 1.5px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all var(--duration-fast);
+}
+.captcha-refresh:hover {
+  border-color: var(--color-primary-light);
+  color: var(--color-primary);
 }
 </style>

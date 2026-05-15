@@ -45,3 +45,4 @@ frontend/.vite/
 *.key
 avatars/
 backend/app/static/generated/
+backend/system_config.json

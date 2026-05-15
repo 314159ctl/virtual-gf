@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
-import { ArrowLeft } from 'lucide-vue-next'
+import { ArrowLeft, Shield } from 'lucide-vue-next'
 import { storeToRefs } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
 
@@ -15,10 +15,14 @@ defineEmits<{
 
 const router = useRouter()
 const auth = useAuthStore()
-const { guestName, userAvatar } = storeToRefs(auth)
+const { guestName, userAvatar, isAdmin } = storeToRefs(auth)
 
 function goProfile() {
   router.push('/profile')
+}
+
+function goAdmin() {
+  router.push('/admin')
 }
 </script>
 
@@ -40,6 +44,9 @@ function goProfile() {
     </div>
 
     <div class="top-bar-right">
+      <button v-if="isAdmin" class="admin-btn" @click="goAdmin" title="管理面板">
+        <Shield :size="18" />
+      </button>
       <div class="user-avatar" @click="goProfile" title="个人中心">
         <img v-if="userAvatar" :src="userAvatar" class="avatar-img" alt="" />
         <span v-else>{{ guestName?.[0] || '?' }}</span>
@@ -104,6 +111,22 @@ function goProfile() {
 
 .top-bar-right {
   display: flex; align-items: center; gap: 8px;
+}
+
+.admin-btn {
+  width: 34px; height: 34px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-primary);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all var(--duration-fast) var(--ease-bounce);
+}
+.admin-btn:hover {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
 }
 
 .user-avatar {

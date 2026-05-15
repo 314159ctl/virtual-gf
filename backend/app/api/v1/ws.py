@@ -493,7 +493,10 @@ async def chat_websocket(websocket: WebSocket, conversation_id: str):
 
                     await db.commit()
 
-                # 发送图片事件（独立气泡，先于文字，只展示图片不展示文字）
+                # 过滤掉 [图片] 占位符，避免空文字气泡
+                text_parts = [p for p in msg_parts if p.strip() != "[图片]"]
+
+                # 发送图片事件（独立气泡，先于文字）
                 if image_result:
                     await websocket.send_json({
                         "type": "image",
@@ -501,29 +504,37 @@ async def chat_websocket(websocket: WebSocket, conversation_id: str):
                         "prompt": "",
                     })
 
-                # 发送 done 事件：第一条（已流式展示），后续逐条模拟流式
-                for i, part in enumerate(msg_parts):
-                    if i == 0:
-                        done_msg = {
-                            "type": "done",
-                            "full_reply": part,
-                            "emotion_state": conv.emotion_state,
-                        }
-                        await websocket.send_json(done_msg)
-                    else:
-                        delay = 1.8 + random.uniform(0, 2.5)
-                        await asyncio.sleep(delay)
-                        for j in range(0, len(part), 2):
+                # 图片生成失败且没有实际文字内容 → 发送错误提示
+                if image_result is None and not text_parts:
+                    await websocket.send_json({
+                        "type": "ai_error",
+                        "code": "image_failed",
+                        "message": "呜…图片生成失败了，请稍后再试吧 (′；ω；`)",
+                    })
+                else:
+                    # 发送文字气泡（只发送有实际内容的）
+                    for i, part in enumerate(text_parts):
+                        if i == 0:
+                            done_msg = {
+                                "type": "done",
+                                "full_reply": part,
+                                "emotion_state": conv.emotion_state,
+                            }
+                            await websocket.send_json(done_msg)
+                        else:
+                            delay = 1.8 + random.uniform(0, 2.5)
+                            await asyncio.sleep(delay)
+                            for j in range(0, len(part), 2):
+                                await websocket.send_json({
+                                    "type": "chunk",
+                                    "content": part[j:j+2]
+                                })
+                                await asyncio.sleep(0.025)
                             await websocket.send_json({
-                                "type": "chunk",
-                                "content": part[j:j+2]
+                                "type": "done",
+                                "full_reply": part,
+                                "emotion_state": conv.emotion_state,
                             })
-                            await asyncio.sleep(0.025)
-                        await websocket.send_json({
-                            "type": "done",
-                            "full_reply": part,
-                            "emotion_state": conv.emotion_state,
-                        })
 
     except asyncio.TimeoutError:
         pass  # 超时静默关闭

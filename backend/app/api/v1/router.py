@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from app.api.v1 import auth, characters, conversations, chat, memories, images, users
+from app.api.v1 import auth, characters, conversations, chat, memories, images, users, admin
 
 api_router = APIRouter()
 
@@ -13,3 +13,4 @@ api_router.include_router(chat.router, prefix="/chat", tags=["聊天"])
 api_router.include_router(memories.router, prefix="/memories", tags=["记忆"])
 api_router.include_router(images.router, prefix="/images", tags=["绘画"])
 api_router.include_router(users.router, prefix="/users", tags=["用户"])
+api_router.include_router(admin.router, prefix="/admin", tags=["管理"])

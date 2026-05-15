@@ -39,16 +39,18 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  const isAdmin = ref(false)
   const hasApiKey = ref(false)
   const apiBaseUrl = ref<string | null>(null)
   const apiModel = ref<string | null>(null)
   const showApiKeyWarning = ref(false)
 
   async function loadUserInfo() {
-    const res = await api.get<{ email: string; username: string; avatar_url: string | null; has_api_key: boolean; api_base_url: string | null; api_model: string | null }>('/users/me')
+    const res = await api.get<{ email: string; username: string; avatar_url: string | null; is_admin: boolean; has_api_key: boolean; api_base_url: string | null; api_model: string | null }>('/users/me')
     guestName.value = res.data.username || ''
     userAvatar.value = res.data.avatar_url
     userEmail.value = res.data.email || ''
+    isAdmin.value = res.data.is_admin || false
     hasApiKey.value = res.data.has_api_key || false
     apiBaseUrl.value = res.data.api_base_url || null
     apiModel.value = res.data.api_model || null
@@ -63,8 +65,8 @@ export const useAuthStore = defineStore('auth', () => {
     apiModel.value = res.data.api_model || null
   }
 
-  async function login(email: string, password: string) {
-    const res = await api.post<AuthTokens>('/auth/login', { email, password })
+  async function login(email: string, password: string, captchaId?: string, captchaCode?: string) {
+    const res = await api.post<AuthTokens>('/auth/login', { email, password, captcha_id: captchaId, captcha_code: captchaCode })
     localStorage.setItem('access_token', res.data.access_token)
     localStorage.setItem('refresh_token', res.data.refresh_token)
     await loadUserInfo()
@@ -81,6 +83,7 @@ export const useAuthStore = defineStore('auth', () => {
     guestName.value = ''
     userAvatar.value = null
     userEmail.value = ''
+    isAdmin.value = false
   }
 
   function promptApiKey() {
@@ -91,5 +94,5 @@ export const useAuthStore = defineStore('auth', () => {
     showApiKeyWarning.value = false
   }
 
-  return { guestName, userAvatar, userEmail, authChecked, isLoggedIn, hasToken, hasApiKey, apiBaseUrl, apiModel, showApiKeyWarning, checkAuth, loadUserInfo, updateProfile, login, register, logout, promptApiKey, dismissApiKeyWarning }
+  return { guestName, userAvatar, userEmail, authChecked, isLoggedIn, isAdmin, hasToken, hasApiKey, apiBaseUrl, apiModel, showApiKeyWarning, checkAuth, loadUserInfo, updateProfile, login, register, logout, promptApiKey, dismissApiKeyWarning }
 })

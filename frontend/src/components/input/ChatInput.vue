@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { Send, Image as ImageIcon, X } from 'lucide-vue-next'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { Send, Image as ImageIcon, Smile, X } from 'lucide-vue-next'
 import { useImageUpload } from '@/composables/useImageUpload'
+import EmojiPicker from './EmojiPicker.vue'
 
 const emit = defineEmits<{
   send: [message: string, image: string | null]
@@ -11,6 +12,40 @@ const text = ref('')
 const { selectedImage, previewUrl, fileInput, selectFile, onFileSelected, onPaste, clearImage } = useImageUpload()
 
 const showQuickActions = ref(false)
+const showEmoji = ref(false)
+const emojiArea = ref<HTMLElement | null>(null)
+const textareaRef = ref<HTMLTextAreaElement | null>(null)
+
+function insertEmoji(emoji: string) {
+  const el = textareaRef.value
+  if (!el) return
+  const start = el.selectionStart
+  const end = el.selectionEnd
+  text.value = text.value.slice(0, start) + emoji + text.value.slice(end)
+  // 恢复光标位置（等 Vue 更新 DOM 后）
+  requestAnimationFrame(() => {
+    const pos = start + emoji.length
+    el.focus()
+    el.setSelectionRange(pos, pos)
+  })
+}
+
+function toggleEmoji() {
+  showEmoji.value = !showEmoji.value
+}
+
+function onEmojiSelect(emoji: string) {
+  insertEmoji(emoji)
+}
+
+function onClickOutside(e: MouseEvent) {
+  if (emojiArea.value && !emojiArea.value.contains(e.target as Node)) {
+    showEmoji.value = false
+  }
+}
+
+onMounted(() => document.addEventListener('click', onClickOutside))
+onUnmounted(() => document.removeEventListener('click', onClickOutside))
 
 const quickActions = ['今天过得怎么样？', '想我了没？', '晚上吃什么？', '讲个故事吧']
 
@@ -61,6 +96,13 @@ function onKeydown(e: KeyboardEvent) {
 
     <!-- 输入行 -->
     <div class="input-row">
+      <div class="emoji-area" ref="emojiArea">
+        <button class="tool-btn" @click="toggleEmoji" title="表情">
+          <Smile :size="20" />
+        </button>
+        <EmojiPicker v-if="showEmoji" class="emoji-popover" @select="onEmojiSelect" />
+      </div>
+
       <button class="tool-btn" @click="selectFile" title="发送图片">
         <ImageIcon :size="20" />
       </button>
@@ -74,6 +116,7 @@ function onKeydown(e: KeyboardEvent) {
 
       <div class="input-wrapper">
         <textarea
+          ref="textareaRef"
           v-model="text"
           class="input-field"
           rows="1"
@@ -282,5 +325,16 @@ function onKeydown(e: KeyboardEvent) {
   font-size: 10px;
   font-family: var(--font-body);
   color: var(--color-text-muted);
+}
+
+/* ── Emoji ── */
+.emoji-area {
+  position: relative;
+}
+.emoji-popover {
+  position: absolute;
+  bottom: 48px;
+  left: 0;
+  z-index: 100;
 }
 </style>

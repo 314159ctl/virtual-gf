@@ -259,6 +259,10 @@ export const useChatStore = defineStore('chat', () => {
           emotion_label: null,
           created_at: new Date().toISOString(),
         })
+        // 收到图片后清除流式状态
+        isStreaming.value = false
+        streamingContent.value = ''
+        streamingComplete.value = false
       } else if (data.type === 'ai_error') {
         isStreaming.value = false
         streamingContent.value = ''
