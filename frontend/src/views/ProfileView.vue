@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
-import { ArrowLeft, Camera, Edit3, Check, X, ChevronRight, Brain, Star, Trash2, LogOut } from 'lucide-vue-next'
+import { ArrowLeft, Camera, Edit3, Check, X, ChevronRight, Brain, Star, Trash2, LogOut, RefreshCw } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
 import { uploadApi } from '@/utils/http'
@@ -11,7 +11,7 @@ const router = useRouter()
 const auth = useAuthStore()
 const chat = useChatStore()
 const { guestName, userAvatar } = storeToRefs(auth)
-const { characters, memories } = storeToRefs(chat)
+const { characters, memories, consolidating } = storeToRefs(chat)
 
 const editingName = ref(false)
 const nameInput = ref('')
@@ -171,7 +171,7 @@ function formatDate(iso: string) {
       </div>
 
       <!-- 记忆管理 -->
-      <div class="card" @click="toggleMemories">
+      <div class="card memory-entry-card" @click="toggleMemories">
         <div class="card-row">
           <div class="card-row-left">
             <Brain :size="18" />
@@ -179,6 +179,7 @@ function formatDate(iso: string) {
           </div>
           <ChevronRight :size="18" class="chevron" :class="{ open: showMemories }" />
         </div>
+        <p class="mem-entry-hint">查看和管理角色的长期记忆</p>
       </div>
 
       <div v-if="showMemories" class="card memory-panel">
@@ -192,6 +193,18 @@ function formatDate(iso: string) {
             @click.stop="onSelectChar(char.id)"
           >
             {{ char.name }}
+          </button>
+        </div>
+
+        <!-- 记忆操作 -->
+        <div class="mem-toolbar">
+          <button
+            class="consolidate-btn"
+            :disabled="consolidating"
+            @click.stop="selectedCharId && chat.consolidateMemories(selectedCharId)"
+          >
+            <RefreshCw :size="13" :class="{ spinning: consolidating }" />
+            <span>{{ consolidating ? '合并中...' : '手动合并记忆' }}</span>
           </button>
         </div>
 
@@ -397,6 +410,18 @@ function formatDate(iso: string) {
 }
 .chevron.open { transform: rotate(90deg); }
 
+/* ── Memory Entry ── */
+.memory-entry-card {
+  border: 1.5px solid var(--color-primary-light);
+  background: var(--color-sakura-light);
+}
+.mem-entry-hint {
+  margin-top: 6px;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  padding-left: 28px;
+}
+
 /* ── Memory Panel ── */
 .memory-panel {
   display: flex;
@@ -422,6 +447,35 @@ function formatDate(iso: string) {
   border-color: var(--color-primary);
   background: var(--color-sakura-light);
   color: var(--color-primary);
+}
+
+.mem-toolbar {
+  display: flex; justify-content: flex-end;
+}
+.consolidate-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 14px;
+  border: 1.5px solid var(--color-primary-light);
+  border-radius: var(--radius-full);
+  background: var(--color-sakura);
+  color: var(--color-primary-dark);
+  font-size: var(--text-xs);
+  font-family: var(--font-body);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-smooth);
+}
+.consolidate-btn:hover:not(:disabled) {
+  background: var(--color-primary-light);
+  color: #fff;
+}
+.consolidate-btn:disabled {
+  opacity: 0.6; cursor: not-allowed;
+}
+.spinning { animation: spin 1s linear infinite; }
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .mem-empty {

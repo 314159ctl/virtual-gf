@@ -41,10 +41,26 @@ export const useChatStore = defineStore('chat', () => {
     }
     if (!char) throw new Error('角色不存在')
     currentCharacter.value = char
-    const res = await api.post('/conversations', null, {
+    // 重置流式状态，防止上次未完成就退出导致加载条卡死
+    isStreaming.value = false
+    streamingContent.value = ''
+    streamingComplete.value = false
+    emotionState.value = null
+
+    // 加载该角色所有会话作为短期记忆
+    const convRes = await api.get<Conversation[]>('/conversations', {
       params: { character_id: char.id },
     })
-    currentConversation.value = res.data
+    if (convRes.data.length > 0) {
+      conversations.value = convRes.data
+      currentConversation.value = convRes.data[0]
+    } else {
+      const res = await api.post('/conversations', null, {
+        params: { character_id: char.id },
+      })
+      conversations.value = [res.data]
+      currentConversation.value = res.data
+    }
     messages.value = []
     wsIntentionalClose.value = true
     if (ws.value) {
@@ -112,11 +128,15 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   async function loadMessages() {
-    if (!currentConversation.value) return
-    const res = await api.get<Message[]>(
-      `/conversations/${currentConversation.value.id}/messages`
+    if (conversations.value.length === 0) return
+    const results = await Promise.all(
+      conversations.value.map(conv =>
+        api.get<Message[]>(`/conversations/${conv.id}/messages`)
+      )
     )
-    messages.value = res.data
+    const allMessages = results.flatMap(r => r.data)
+    allMessages.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    messages.value = allMessages
   }
 
   // ── 记忆 ──
@@ -142,6 +162,22 @@ export const useChatStore = defineStore('chat', () => {
   async function deleteMemory(id: string) {
     await api.delete(`/memories/${id}`)
     memories.value = memories.value.filter(m => m.id !== id)
+  }
+
+  const consolidating = ref(false)
+  async function consolidateMemories(characterId?: string | null) {
+    const cid = characterId || currentCharacter.value?.id
+    if (!cid) return
+    consolidating.value = true
+    try {
+      const res = await api.post('/memories/consolidate', null, { params: { character_id: cid } })
+      if (res.data.consolidated) {
+        await loadMemories(cid)
+      }
+      return res.data
+    } finally {
+      consolidating.value = false
+    }
   }
 
   // ── WebSocket ──
@@ -223,7 +259,21 @@ export const useChatStore = defineStore('chat', () => {
 
     socket.onerror = () => {
       ws.value = null
+      isStreaming.value = false
+      streamingContent.value = ''
+      streamingComplete.value = false
     }
+  }
+
+  function disconnectWebSocket() {
+    wsIntentionalClose.value = true
+    if (ws.value) {
+      ws.value.close()
+      ws.value = null
+    }
+    isStreaming.value = false
+    streamingContent.value = ''
+    streamingComplete.value = false
   }
 
   function sendMessage(text: string, image?: string | null) {
@@ -288,7 +338,8 @@ export const useChatStore = defineStore('chat', () => {
     memories,
     loadCharacters, selectCharacter, createCharacter, generateCharacterProfile,
     analyzeChatLogs, uploadCharacterDocuments,
-    loadMessages, sendMessage, connectWebSocket, uploadAvatar,
+    loadMessages, sendMessage, connectWebSocket, disconnectWebSocket, uploadAvatar,
     deleteCharacter, loadMemories, updateMemory, deleteMemory,
+    consolidating, consolidateMemories,
   }
 })

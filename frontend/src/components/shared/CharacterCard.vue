@@ -17,11 +17,6 @@ const chat = useChatStore()
 const fileInput = ref<HTMLInputElement | null>(null)
 const uploading = ref(false)
 
-function onDeleteClick(e: Event) {
-  e.stopPropagation()
-  emit('deleteRequest')
-}
-
 const gradients = [
   'linear-gradient(135deg, #FF7DAF, #C4A1FF)',
   'linear-gradient(135deg, #FFB8D4, #FFD4A8)',
@@ -43,8 +38,7 @@ const tags = computed(() => {
   return result.slice(0, 3)
 })
 
-function triggerUpload(e: Event) {
-  e.stopPropagation()
+function triggerUpload() {
   fileInput.value?.click()
 }
 
@@ -65,22 +59,23 @@ async function onFileChange(e: Event) {
 </script>
 
 <template>
-  <div class="char-card" @click="emit('select')">
+  <div class="char-card">
     <div
       class="card-avatar"
       :style="character.avatar_url ? {} : { background: gradients[Math.abs(character.name.charCodeAt(0)) % gradients.length] }"
+      @click="emit('select')"
     >
       <img v-if="character.avatar_url" :src="character.avatar_url" class="avatar-img" alt="" />
       <span v-else class="avatar-text">{{ character.name[0] }}</span>
       <!-- 换头像按钮 -->
-      <div class="avatar-edit" @click="triggerUpload" :class="{ uploading }" title="更换头像">
+      <div class="avatar-edit" @click.stop="triggerUpload" :class="{ uploading }" title="更换头像">
         <Camera :size="18" />
       </div>
       <!-- 删除角色按钮（仅非模板角色） -->
       <div
         v-if="!character.is_template"
         class="avatar-delete"
-        @click="onDeleteClick"
+        @click.stop="emit('deleteRequest')"
         title="删除角色"
       >
         <Trash2 :size="16" />
@@ -90,10 +85,11 @@ async function onFileChange(e: Event) {
         type="file"
         accept="image/jpeg,image/png,image/webp,image/gif"
         class="file-input"
+        @click.stop
         @change="onFileChange"
       />
     </div>
-    <div class="card-info">
+    <div class="card-info" @click="emit('select')">
       <h3 class="card-name">{{ character.name }}</h3>
       <p class="card-desc">{{ character.description || '等待与你相遇...' }}</p>
       <div v-if="tags.length" class="card-tags">
@@ -129,6 +125,7 @@ async function onFileChange(e: Event) {
   justify-content: center;
   position: relative;
   overflow: hidden;
+  cursor: pointer;
 }
 .avatar-img {
   width: 100%;
@@ -206,6 +203,7 @@ async function onFileChange(e: Event) {
 
 .card-info {
   padding: 14px 16px;
+  cursor: pointer;
 }
 .card-name {
   font-family: var(--font-heading);

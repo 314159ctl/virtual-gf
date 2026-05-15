@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { Brain, Star, Trash2, Edit3, Check, X } from 'lucide-vue-next'
+import { Brain, Star, Trash2, Edit3, Check, X, RefreshCw } from 'lucide-vue-next'
 import { useChatStore } from '@/stores/chat'
 import { storeToRefs } from 'pinia'
 
@@ -8,7 +8,7 @@ const props = defineProps<{ show: boolean }>()
 const emit = defineEmits<{ close: [] }>()
 
 const chat = useChatStore()
-const { memories, currentCharacter } = storeToRefs(chat)
+const { memories, currentCharacter, consolidating } = storeToRefs(chat)
 
 const editingId = ref<string | null>(null)
 const editingContent = ref('')
@@ -69,16 +69,35 @@ function formatDate(iso: string) {
 
           <div class="panel-body">
             <p class="panel-desc">
-              {{ currentCharacter?.name }}对你的记忆，每 10 条消息自动提取
+              {{ currentCharacter?.name }}对你的记忆，每 20 条消息自动合并
             </p>
 
             <div v-if="loading" class="panel-empty">加载中...</div>
 
             <div v-else-if="memories.length === 0" class="panel-empty">
               暂无记忆，继续聊天以生成记忆
+              <button
+                class="consolidate-btn"
+                :disabled="consolidating"
+                @click="chat.consolidateMemories()"
+              >
+                <RefreshCw :size="14" :class="{ spinning: consolidating }" />
+                <span>{{ consolidating ? '合并中...' : '手动合并记忆' }}</span>
+              </button>
             </div>
 
-            <div v-else class="memory-list">
+            <template v-else>
+              <div class="memory-list-header">
+                <button
+                  class="consolidate-btn small"
+                  :disabled="consolidating"
+                  @click="chat.consolidateMemories()"
+                >
+                  <RefreshCw :size="13" :class="{ spinning: consolidating }" />
+                  <span>{{ consolidating ? '合并中...' : '手动合并记忆' }}</span>
+                </button>
+              </div>
+              <div class="memory-list">
               <div
                 v-for="m in memories"
                 :key="m.id"
@@ -145,6 +164,7 @@ function formatDate(iso: string) {
                 </div>
               </div>
             </div>
+            </template>
           </div>
         </div>
       </div>
@@ -226,6 +246,47 @@ function formatDate(iso: string) {
   padding: 40px 20px;
   font-size: var(--text-sm);
   color: var(--color-text-muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.consolidate-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1.5px solid var(--color-primary-light);
+  border-radius: var(--radius-full);
+  background: var(--color-sakura);
+  color: var(--color-primary-dark);
+  font-size: var(--text-xs);
+  font-family: var(--font-body);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-smooth);
+}
+.consolidate-btn:hover:not(:disabled) {
+  background: var(--color-primary-light);
+  color: #fff;
+}
+.consolidate-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.consolidate-btn.small {
+  padding: 5px 12px;
+  font-size: 11px;
+}
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+.memory-list-header {
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: flex-end;
 }
 
 .memory-list {

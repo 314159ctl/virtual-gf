@@ -23,11 +23,12 @@ from app.models.memory import LongTermMemory
 from app.core.config import settings
 from app.core.security import decode_token
 from app.services.ai_engine import EnhancedAIEngine
+from app.services.memory_service import consolidate_memories
 
 router = APIRouter()
 
-# 每 N 条用户消息触发一次记忆提取
-MEMORY_EXTRACT_INTERVAL = 10
+# 每 N 条用户消息触发一次记忆合并
+MEMORY_CONSOLIDATE_INTERVAL = 20
 # 每 N 条消息触发一次对话摘要
 SUMMARY_INTERVAL = 30
 # 匹配 [IMAGE:xxx] / [image:xxx] / [IMAGE：xxx]（大小写不敏感+中英文冒号）
@@ -121,22 +122,6 @@ async def _detect_and_update_emotion(db, conv, user_message: str):
     except Exception:
         return conv.emotion_state
 
-
-async def _extract_and_save_memories(db, user_id: str, character_id, history: list[dict]):
-    """从对话中提取记忆并保存到数据库"""
-    try:
-        extracted = await engine.extract_memories(history)
-        for content in extracted:
-            memory = LongTermMemory(
-                user_id=uuid.UUID(user_id),
-                character_id=character_id,
-                content=content,
-                importance=3,
-            )
-            db.add(memory)
-        await db.flush()
-    except Exception:
-        pass
 
 
 async def _maybe_summarize(db, conv, conversation_id: str):
@@ -424,20 +409,9 @@ async def chat_websocket(websocket: WebSocket, conversation_id: str):
                         if conv.message_count % SUMMARY_INTERVAL == 0:
                             asyncio.create_task(_maybe_summarize(db, conv, conversation_id))
 
-                    if conv and conv.message_count % MEMORY_EXTRACT_INTERVAL == 0:
-                        char_id = conv.character_id
-                        msg_result = await db.execute(
-                            select(Message)
-                            .where(Message.conversation_id == uuid.UUID(conversation_id))
-                            .order_by(Message.created_at.desc())
-                            .limit(20)
-                        )
-                        recent_history = [
-                            {"role": m.role, "content": m.content}
-                            for m in reversed(msg_result.scalars().all())
-                        ]
+                    if conv and conv.message_count % MEMORY_CONSOLIDATE_INTERVAL == 0:
                         asyncio.create_task(
-                            _extract_and_save_memories(db, user_id, char_id, recent_history)
+                            consolidate_memories(str(conv.character_id), user_id, db)
                         )
 
                     await db.commit()

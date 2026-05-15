@@ -4,7 +4,7 @@ import uuid
 
 from pydantic import BaseModel
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +12,7 @@ from app.core.dependencies import get_optional_user
 from app.db.session import get_db
 from app.models.memory import LongTermMemory
 from app.models.user import User
+from app.services.memory_service import consolidate_memories
 
 
 class MemoryUpdate(BaseModel):
@@ -51,6 +52,19 @@ async def list_memories(
         }
         for m in memories
     ]
+
+
+@router.post("/consolidate")
+async def trigger_consolidation(
+    character_id: uuid.UUID = Query(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(get_optional_user),
+):
+    """触发记忆合并：将短期对话总结为长期记忆"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="请先登录")
+    result = await consolidate_memories(str(character_id), str(current_user.id), db)
+    return result
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
