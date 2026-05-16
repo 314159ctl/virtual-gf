@@ -406,6 +406,21 @@ async def chat_websocket(websocket: WebSocket, conversation_id: str):
                 # 用原始文本判断，排除识图上下文干扰
                 force_image = bool(IMAGE_REQUEST_KW.search(original_text))
 
+                # force_image：直接并行调绘图 API，不依赖 AI 的 [IMAGE:xxx] 标记
+                image_task = None
+                if force_image:
+                    async def _force_image_generate():
+                        intent = await engine.detect_image_intent(
+                            user_message=original_text, conversation_history=history,
+                            character_name=character_name, personality_profile=personality_profile,
+                            api_key=user_api_key, api_base_url=user_api_base_url, api_model=user_api_model,
+                            force_image=True,
+                        )
+                        prompt = intent.get("image_prompt") if intent.get("wants_image") else original_text
+                        return await _generate_image(conversation_id, prompt)
+                    image_task = asyncio.create_task(_force_image_generate())
+                    logger.info(f"[CHAT] force_image detected, started image generation task")
+
                 async for chunk in engine.chat_stream(
                     system_prompt=system_prompt,
                     history=history,
@@ -439,12 +454,13 @@ async def chat_websocket(websocket: WebSocket, conversation_id: str):
                     }))
                     continue
 
-                # 提取 [IMAGE:xxx] 标记或触发服务端兜底生图
-                image_task = _maybe_generate_image(
-                    raw_full_reply, force_image, user_message, history,
-                    character_name, personality_profile, conversation_id,
-                    user_api_key, user_api_base_url, user_api_model,
-                )
+                # 提取 [IMAGE:xxx] 自发标记（仅非 force_image 时，force_image 已并行生图）
+                if not force_image:
+                    image_task = _maybe_generate_image(
+                        raw_full_reply, False, user_message, history,
+                        character_name, personality_profile, conversation_id,
+                        user_api_key, user_api_base_url, user_api_model,
+                    )
 
                 # 清理文本（移除 [IMAGE:xxx] 和 [发送了...] 伪装标记）
                 full_reply = IMAGE_RE.sub("", raw_full_reply)
