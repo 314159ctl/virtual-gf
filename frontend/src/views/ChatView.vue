@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, watch, ref } from 'vue'
+import { computed, onMounted, onUnmounted, watch, ref, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useChatStore } from '@/stores/chat'
@@ -27,7 +27,7 @@ const displayMessages = computed(() =>
 )
 
 const messageContainer = ref<HTMLElement | null>(null)
-const { onNewContent, checkScrollPosition } = useAutoScroll(messageContainer)
+const { onNewContent, scrollToBottom, checkScrollPosition } = useAutoScroll(messageContainer)
 
 const loading = ref(true)
 const loadError = ref('')
@@ -40,6 +40,8 @@ onMounted(async () => {
     loadError.value = e?.response?.data?.detail || '加载角色失败'
   } finally {
     loading.value = false
+    await nextTick()
+    scrollToBottom(false)
   }
 })
 

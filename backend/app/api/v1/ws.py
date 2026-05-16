@@ -447,8 +447,10 @@ async def chat_websocket(websocket: WebSocket, conversation_id: str):
                 # 清理文本（移除 [IMAGE:xxx] 和 [发送了...] 伪装标记）
                 full_reply = IMAGE_RE.sub("", raw_full_reply)
                 full_reply = FAKE_SEND_RE.sub("", full_reply).strip()
-                full_reply = re.sub(r'\n{3,}', '\n\n', full_reply)  # 移除多余空行
-                if not full_reply:
+                # 移除动作描写括号：（脸红）（叹气）*笑* 【开心】等
+                full_reply = re.sub(r'[（(][^）)]*?[）)]', '', full_reply)
+                full_reply = re.sub(r'\*[^*]+?\*', '', full_reply)
+                full_reply = re.sub(r'【[^】]+?】', '', full_reply)
                     full_reply = "[图片]"
 
                 tasks = [emotion_task]
