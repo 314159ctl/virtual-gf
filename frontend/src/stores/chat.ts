@@ -230,15 +230,18 @@ export const useChatStore = defineStore('chat', () => {
       } else if (data.type === 'done') {
         streamingComplete.value = true
         const hasImage = !!data.image_url
-        messages.value.push({
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          content: data.full_reply,
-          content_type: hasImage ? 'image' : 'text',
-          metadata: hasImage ? { image_url: data.image_url, prompt: data.image_prompt } : null,
-          emotion_label: null,
-          created_at: new Date().toISOString(),
-        })
+        const hasText = data.full_reply && data.full_reply.trim()
+        if (hasText || hasImage) {
+          messages.value.push({
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: data.full_reply || '',
+            content_type: hasImage ? 'image' : 'text',
+            metadata: hasImage ? { image_url: data.image_url, prompt: data.image_prompt } : null,
+            emotion_label: null,
+            created_at: new Date().toISOString(),
+          })
+        }
         if (data.emotion_state) {
           emotionState.value = data.emotion_state
         }
@@ -253,7 +256,7 @@ export const useChatStore = defineStore('chat', () => {
         messages.value.push({
           id: crypto.randomUUID(),
           role: 'assistant',
-          content: data.prompt || '[图片]',
+          content: data.prompt || '',
           content_type: 'image',
           metadata: { image_url: data.url, prompt: data.prompt },
           emotion_label: null,

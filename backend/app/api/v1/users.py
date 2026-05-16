@@ -1,5 +1,7 @@
 """用户信息 API"""
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,6 +10,8 @@ from app.core.security import encrypt_api_key, decrypt_api_key
 from app.core.config import settings
 from app.db.session import get_db
 from app.models.user import User
+
+logger = logging.getLogger(__name__)
 from app.schemas.user import UserOut, UserUpdate
 
 router = APIRouter()
@@ -111,4 +115,5 @@ async def test_api_connection(current_user: User = Depends(get_current_user)):
             raise HTTPException(status_code=402, detail="API 余额不足，请充值后重试")
         raise HTTPException(status_code=502, detail=f"AI 服务返回错误（{e.status_code}），请稍后重试")
     except Exception as e:
+        logger.exception("API key validation failed")
         raise HTTPException(status_code=502, detail=f"连接失败: {str(e)[:120]}")

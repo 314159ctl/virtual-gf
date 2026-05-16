@@ -1,11 +1,14 @@
 """角色 CRUD API"""
 
+import logging
 import uuid
 from io import BytesIO
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status
 from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
 
 from app.core.dependencies import get_optional_user, get_current_user
 from app.core.security import decrypt_api_key
@@ -314,6 +317,7 @@ def _extract_text(filename: str, content: bytes) -> str:
                     parts.append(text)
             return "\n".join(parts)
         except Exception:
+            logger.exception("PDF text extraction failed")
             return ""
 
     if ext == "docx":
@@ -322,6 +326,7 @@ def _extract_text(filename: str, content: bytes) -> str:
             doc = Document(BytesIO(content))
             return "\n".join(p.text for p in doc.paragraphs if p.text)
         except Exception:
+            logger.exception("DOCX text extraction failed")
             return ""
 
     return ""

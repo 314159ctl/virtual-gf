@@ -158,6 +158,7 @@ async def _detect_and_update_emotion(db, conv, user_message: str, api_key: str |
         await db.flush()
         return emotion
     except Exception:
+        logger.exception("Emotion detection failed")
         return conv.emotion_state
 
 
@@ -181,6 +182,7 @@ async def _maybe_summarize(db, conv, conversation_id: str, api_key: str | None =
                 conv.summary = summary
                 await db.flush()
         except Exception:
+            logger.exception("Conversation summarization failed")
             pass
 
 
@@ -324,7 +326,7 @@ async def chat_websocket(websocket: WebSocket, conversation_id: str):
                             user_api_base_url = user_row.api_base_url
                             user_api_model = user_row.api_model
             except Exception:
-                pass
+                logger.exception("Failed to load user API key")
 
         manager.active[f"{user_id}:{conversation_id}"] = websocket
 
@@ -354,7 +356,7 @@ async def chat_websocket(websocket: WebSocket, conversation_id: str):
                         description = await engine.describe_image(image_data)
                         user_message = f"[用户发了一张照片：{description}] 用户说：{user_message or '看看这张图'}"
                     except Exception:
-                        # 豆包失败，直接把图发给 DeepSeek（多模态）
+                        logger.exception("Vision description failed, falling back to raw image")
                         user_message = user_message or "看看这张图"
                         fallback_image = image_data
 
@@ -496,8 +498,8 @@ async def chat_websocket(websocket: WebSocket, conversation_id: str):
 
                     await db.commit()
 
-                # 过滤掉 [图片] 占位符，避免空文字气泡
-                text_parts = [p for p in msg_parts if p.strip() != "[图片]"]
+                # 过滤掉 [图片] 占位符和空字符串，避免空文字气泡
+                text_parts = [p for p in msg_parts if p.strip() and p.strip() != "[图片]"]
 
                 # 发送图片事件（独立气泡，先于文字）
                 if image_result:
@@ -507,14 +509,14 @@ async def chat_websocket(websocket: WebSocket, conversation_id: str):
                         "prompt": "",
                     })
 
-                # 图片生成失败且没有实际文字内容 → 发送错误提示
+                # 没有实际文字内容，也没有图片 → 发送错误提示
                 if image_result is None and not text_parts:
                     await websocket.send_json({
                         "type": "ai_error",
                         "code": "image_failed",
                         "message": "呜…图片生成失败了，请稍后再试吧 (′；ω；`)",
                     })
-                else:
+                elif text_parts:
                     # 发送文字气泡（只发送有实际内容的）
                     for i, part in enumerate(text_parts):
                         if i == 0:
@@ -544,6 +546,7 @@ async def chat_websocket(websocket: WebSocket, conversation_id: str):
     except WebSocketDisconnect:
         pass
     except Exception as e:
+        logger.exception("WebSocket chat error")
         if user_id:
             try:
                 await websocket.send_json({"type": "error", "message": str(e)})

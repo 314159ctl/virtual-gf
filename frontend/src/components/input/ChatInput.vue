@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { Send, Image as ImageIcon, Smile, X } from 'lucide-vue-next'
+import { Send, Image as ImageIcon, Smile } from 'lucide-vue-next'
 import { useImageUpload } from '@/composables/useImageUpload'
 import EmojiPicker from './EmojiPicker.vue'
+import ImagePreviewTag from './ImagePreviewTag.vue'
 
 const emit = defineEmits<{
   send: [message: string, image: string | null]
@@ -47,7 +48,7 @@ function onClickOutside(e: MouseEvent) {
 onMounted(() => document.addEventListener('click', onClickOutside))
 onUnmounted(() => document.removeEventListener('click', onClickOutside))
 
-const quickActions = ['今天过得怎么样？', '想我了没？', '晚上吃什么？', '讲个故事吧']
+const quickActions = ['我好想你呀', '在忙什么呢', '拍张自拍给我看看', '最近有什么开心的事吗']
 
 const canSend = computed(() => text.value.trim().length > 0 || selectedImage.value !== null)
 
@@ -74,12 +75,7 @@ function onKeydown(e: KeyboardEvent) {
 <template>
   <div class="chat-input-area">
     <!-- 图片预览 -->
-    <div v-if="previewUrl" class="image-preview">
-      <img :src="previewUrl" alt="preview" />
-      <button class="remove-btn" @click="clearImage">
-        <X :size="14" />
-      </button>
-    </div>
+    <ImagePreviewTag v-if="previewUrl" :url="previewUrl" @remove="clearImage" />
 
     <!-- 快速操作 -->
     <div v-if="showQuickActions" class="quick-actions">
@@ -139,7 +135,7 @@ function onKeydown(e: KeyboardEvent) {
 
     <div class="input-footer">
       <button type="button" class="qa-toggle" @click="showQuickActions = !showQuickActions">
-        {{ showQuickActions ? '收起' : '快捷回复' }}
+        {{ showQuickActions ? '收起' : '快捷消息' }}
       </button>
       <div class="input-hint">Enter 发送 · Shift + Enter 换行</div>
     </div>
@@ -152,34 +148,6 @@ function onKeydown(e: KeyboardEvent) {
   padding: 12px 20px 14px;
   background: var(--color-surface);
   border-top: 1px solid var(--color-border);
-}
-
-.image-preview {
-  position: relative;
-  display: inline-block;
-  margin-bottom: 8px;
-}
-.image-preview img {
-  width: 80px;
-  height: 80px;
-  object-fit: cover;
-  border-radius: var(--radius-sm);
-  border: 2px solid var(--color-border);
-}
-.remove-btn {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: var(--color-error);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  border: 2px solid var(--color-surface);
 }
 
 .input-row {

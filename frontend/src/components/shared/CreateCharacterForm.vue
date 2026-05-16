@@ -461,7 +461,7 @@ const expr = computed(() => profile.value.expression_style || {})
             v-model="chatLogText"
             class="form-textarea chat-log-textarea"
             rows="8"
-            placeholder="将聊天记录粘贴到此处...&#10;&#10;格式示例：&#10;2024-03-15 14:30 对方：今天去哪吃饭呀&#10;2024-03-15 14:31 你：想吃火锅了～&#10;2024-03-15 14:32 对方：好啊，老地方见"
+            placeholder="将聊天记录粘贴到此处...&#10;&#10;格式示例（AI 会蒸馏「对方」的角色人格）：&#10;2024-03-15 14:30 对方（女）：今天去哪吃饭呀&#10;2024-03-15 14:31 我：想吃火锅了～&#10;2024-03-15 14:32 对方（女）：好啊，老地方见"
           />
           <div class="char-count">{{ chatLogText.length }} 字</div>
         </div>
@@ -485,39 +485,11 @@ const expr = computed(() => profile.value.expression_style || {})
         </div>
       </div>
 
-      <!-- Step 2: 确认信息 + 创建 -->
+      <!-- Step 2: 编辑调整 + 创建 -->
       <div v-if="step === 2" class="step-content">
-        <h3 class="step-title">确认角色信息</h3>
+        <h3 class="step-title">调整角色设定</h3>
+        <p class="step-desc">AI 已从聊天记录中蒸馏出角色人格。你可以在下方自由修改任何字段，满意后创建角色。</p>
 
-        <!-- 分析结果总览 -->
-        <div v-if="analysisResult" class="analysis-result">
-          <h4 class="analysis-title">蒸馏结果 — 角色设定总览</h4>
-          <div v-if="analysisResult.background" class="analysis-section">
-            <span class="analysis-label">背景经历</span>
-            <p class="analysis-val">{{ analysisResult.background }}</p>
-          </div>
-          <div v-if="analysisResult.personality" class="analysis-section">
-            <span class="analysis-label">性格特点</span>
-            <p class="analysis-val">{{ analysisResult.personality }}</p>
-          </div>
-          <div v-if="analysisResult.speaking_style" class="analysis-section">
-            <span class="analysis-label">说话风格</span>
-            <p class="analysis-val">{{ analysisResult.speaking_style }}</p>
-          </div>
-          <div v-if="analysisResult.output_examples" class="analysis-section">
-            <span class="analysis-label">输出示例</span>
-            <p class="analysis-val examples-val">{{ analysisResult.output_examples.split('\\').filter(Boolean).join(' / ') }}</p>
-          </div>
-          <div v-if="analysisResult.expression_style" class="analysis-section">
-            <span class="analysis-label">口头禅 / 称呼</span>
-            <p class="analysis-val">
-              <template v-if="analysisResult.expression_style.confirm?.length">确认：{{ analysisResult.expression_style.confirm.join('、') }}<br/></template>
-              <template v-if="analysisResult.expression_style.pet_names?.length">称呼：{{ analysisResult.expression_style.pet_names.join('、') }}</template>
-            </p>
-          </div>
-        </div>
-
-        <!-- 名字 + 描述 -->
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">角色名字 *</label>
@@ -529,7 +501,6 @@ const expr = computed(() => profile.value.expression_style || {})
           </div>
         </div>
 
-        <!-- 头像上传 -->
         <div class="form-group">
           <label class="form-label">角色头像</label>
           <div class="avatar-upload">
@@ -544,6 +515,80 @@ const expr = computed(() => profile.value.expression_style || {})
               </template>
             </button>
           </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">外貌描写</label>
+          <textarea v-model="profile.appearance" class="form-textarea" rows="2" placeholder="描述角色的外貌特征..." />
+        </div>
+        <div class="form-group">
+          <label class="form-label">背景经历</label>
+          <textarea v-model="profile.background" class="form-textarea" rows="3" placeholder="角色的成长经历、与用户的关系..." />
+        </div>
+        <div class="form-group">
+          <label class="form-label">性格特点</label>
+          <textarea v-model="profile.personality" class="form-textarea" rows="3" placeholder="性格的多个层面..." />
+        </div>
+        <div class="form-group">
+          <label class="form-label">说话风格</label>
+          <textarea v-model="profile.speaking_style" class="form-textarea" rows="2" placeholder="语气、用词习惯..." />
+        </div>
+        <div class="form-group">
+          <label class="form-label">表达风格</label>
+          <div class="expr-grid">
+            <div class="expr-item">
+              <span class="expr-label">确认用语</span>
+              <input
+                :value="(expr.confirm || []).join('、')"
+                @input="profile.expression_style = { ...expr, confirm: ($event.target as HTMLInputElement).value.split('、').filter(Boolean) }"
+                class="form-input" placeholder="好的呀、嗯嗯"
+              />
+            </div>
+            <div class="expr-item">
+              <span class="expr-label">道歉用语</span>
+              <input
+                :value="(expr.apologize || []).join('、')"
+                @input="profile.expression_style = { ...expr, apologize: ($event.target as HTMLInputElement).value.split('、').filter(Boolean) }"
+                class="form-input" placeholder="对不起嘛"
+              />
+            </div>
+            <div class="expr-item">
+              <span class="expr-label">感谢用语</span>
+              <input
+                :value="(expr.thanks || []).join('、')"
+                @input="profile.expression_style = { ...expr, thanks: ($event.target as HTMLInputElement).value.split('、').filter(Boolean) }"
+                class="form-input" placeholder="谢谢你呀"
+              />
+            </div>
+            <div class="expr-item">
+              <span class="expr-label">对用户称呼</span>
+              <input
+                :value="(expr.pet_names || []).join('、')"
+                @input="profile.expression_style = { ...expr, pet_names: ($event.target as HTMLInputElement).value.split('、').filter(Boolean) }"
+                class="form-input" placeholder="宝贝、亲爱的"
+              />
+            </div>
+            <div class="expr-item">
+              <span class="expr-label">常用 emoji</span>
+              <input
+                :value="(expr.emoji || []).join('')"
+                @input="profile.expression_style = { ...expr, emoji: Array.from(($event.target as HTMLInputElement).value).filter(c => /\p{Emoji}/u.test(c)) }"
+                class="form-input" placeholder="🥰💕😊"
+              />
+            </div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">兴趣爱好</label>
+          <textarea v-model="profile.preferences" class="form-textarea" rows="2" placeholder="喜欢什么、讨厌什么..." />
+        </div>
+        <div class="form-group">
+          <label class="form-label">输出示例</label>
+          <textarea v-model="profile.output_examples" class="form-textarea" rows="3" placeholder="用 \ 分隔不同示例回复" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">行为规则</label>
+          <textarea v-model="profile.behavioral_rules" class="form-textarea" rows="2" placeholder="回复长度、语言要求、特殊约束..." />
         </div>
 
         <div v-if="error" class="error-msg">{{ error }}</div>

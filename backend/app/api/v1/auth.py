@@ -1,5 +1,7 @@
 """认证 API — 注册 / 登录 / 刷新令牌 / 验证码"""
 
+import logging
+
 from fastapi import APIRouter, Body, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,6 +10,8 @@ from app.core.security import create_access_token, create_refresh_token, decode_
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.user import TokenResponse, UserLogin, UserOut, UserRegister
+
+logger = logging.getLogger(__name__)
 from app.services.captcha import generate_captcha, verify_captcha
 
 router = APIRouter()
@@ -103,6 +107,7 @@ async def refresh_token(refresh_token: str = Body(..., embed=True), db: AsyncSes
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="无效的令牌类型")
         user_id = payload.get("sub")
     except Exception:
+        logger.exception("Refresh token decode failed")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="令牌无效或已过期")
 
     result = await db.execute(select(User).where(User.id == user_id))
