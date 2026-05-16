@@ -500,6 +500,7 @@ async def chat_websocket(websocket: WebSocket, conversation_id: str):
 
                 # 过滤掉 [图片] 占位符和空字符串，避免空文字气泡
                 text_parts = [p for p in msg_parts if p.strip() and p.strip() != "[图片]"]
+                logger.info(f"[SEND] image={bool(image_result)} text_parts={len(text_parts)} full_reply={repr(full_reply[:100]) if full_reply else 'EMPTY'}")
 
                 # 发送图片事件（独立气泡，先于文字）
                 if image_result:
