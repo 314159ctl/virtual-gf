@@ -3,16 +3,22 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_current_user
-from app.core.security import encrypt_api_key, decrypt_api_key
+from app.core.security import encrypt_api_key, decrypt_api_key, verify_password, hash_password
 from app.core.config import settings
 from app.db.session import get_db
 from app.models.user import User
 
 logger = logging.getLogger(__name__)
 from app.schemas.user import UserOut, UserUpdate
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
 
 router = APIRouter()
 
@@ -82,6 +88,22 @@ async def upload_user_avatar(
     await db.flush()
     await db.refresh(current_user)
     return _user_to_out(current_user)
+
+
+@router.post("/me/change-password")
+async def change_password(
+    data: ChangePasswordRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """修改密码"""
+    if not verify_password(data.current_password, current_user.password_hash):
+        raise HTTPException(status_code=400, detail="当前密码错误")
+    if len(data.new_password) < 6:
+        raise HTTPException(status_code=400, detail="新密码至少6位")
+    current_user.password_hash = hash_password(data.new_password)
+    await db.flush()
+    return {"message": "密码修改成功"}
 
 
 @router.post("/me/test-api")

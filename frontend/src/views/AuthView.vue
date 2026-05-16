@@ -387,4 +387,20 @@ async function doRegister() {
   border-color: var(--color-primary-light);
   color: var(--color-primary);
 }
+
+@media (max-width: 480px) {
+  .auth-view {
+    padding: 16px;
+  }
+  .auth-card {
+    padding: 24px 18px 18px;
+  }
+  .brand-text {
+    font-size: var(--text-base);
+    letter-spacing: 1px;
+  }
+  .form-input {
+    padding: 8px 12px;
+  }
+}
 </style>

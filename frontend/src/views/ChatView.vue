@@ -11,6 +11,8 @@ import StreamingBubble from '@/components/chat/StreamingBubble.vue'
 import TypingIndicator from '@/components/chat/TypingIndicator.vue'
 import ChatInput from '@/components/input/ChatInput.vue'
 import EmotionBadge from '@/components/chat/EmotionBadge.vue'
+import { Trash2 } from 'lucide-vue-next'
+import api from '@/utils/http'
 
 const props = defineProps<{ characterId: string }>()
 
@@ -71,6 +73,30 @@ function formatDate() {
   const weekdays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六']
   return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${weekdays[d.getDay()]}`
 }
+
+function onRecall(msgId: string) {
+  chat.recallMessage(msgId)
+}
+function onRetry(msgId: string) {
+  chat.retryMessage(msgId)
+}
+
+const deletingConv = ref(false)
+async function deleteCurrentConv() {
+  if (!chat.currentConversation) return
+  if (!confirm('确定删除当前对话及所有消息？此操作不可恢复。')) return
+  deletingConv.value = true
+  try {
+    await api.delete(`/conversations/${chat.currentConversation.id}`)
+    chat.currentConversation = null
+    chat.messages = []
+    router.push({ name: 'home' })
+  } catch (e: any) {
+    alert(e?.response?.data?.detail || '删除失败')
+  } finally {
+    deletingConv.value = false
+  }
+}
 </script>
 
 <template>
@@ -81,6 +107,14 @@ function formatDate() {
       @back="goBack"
     >
       <template #actions>
+        <button
+          class="action-btn"
+          :disabled="deletingConv"
+          title="删除对话"
+          @click="deleteCurrentConv"
+        >
+          <Trash2 :size="18" />
+        </button>
       </template>
     </TopBar>
 
@@ -106,16 +140,20 @@ function formatDate() {
         <div class="date-divider">{{ formatDate() }}</div>
 
         <MessageBubble
-          v-for="m in displayMessages"
+          v-for="(m, i) in displayMessages"
           :key="m.id"
           :role="m.role"
           :content="m.content"
           :time="formatTime(m.created_at)"
           :content-type="m.content_type"
           :metadata="m.metadata"
+          :message-id="m.id"
+          :is-last="i === displayMessages.length - 1"
           :avatar-name="m.role === 'assistant' ? currentCharacter?.name?.[0] : undefined"
           :avatar-url="m.role === 'assistant' ? currentCharacter?.avatar_url : undefined"
           :user-avatar-url="m.role === 'user' ? userAvatar : undefined"
+          @recall="onRecall"
+          @retry="onRetry"
         />
 
         <StreamingBubble
@@ -216,6 +254,28 @@ function formatDate() {
   box-shadow: var(--shadow-sm);
 }
 
+.action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+}
+.action-btn:hover {
+  background: var(--color-error);
+  color: #fff;
+}
+.action-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .input-area {
   display: flex;
   flex-direction: column;
@@ -231,6 +291,9 @@ function formatDate() {
   .chat-messages {
     padding: 16px;
     gap: 12px;
+  }
+  .input-area {
+    padding: 0 12px 6px;
   }
 }
 

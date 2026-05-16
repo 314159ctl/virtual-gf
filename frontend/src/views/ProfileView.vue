@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
-import { ArrowLeft, Camera, Edit3, Check, X, ChevronRight, Brain, Star, Trash2, LogOut, RefreshCw, Key, Eye, EyeOff } from 'lucide-vue-next'
+import { ArrowLeft, Camera, Edit3, Check, X, ChevronRight, Brain, Star, Trash2, LogOut, RefreshCw, Key, Eye, EyeOff, Lock } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
 import api, { uploadApi } from '@/utils/http'
@@ -33,6 +33,49 @@ const showKeyValue = ref(false)
 const testing = ref(false)
 const testResult = ref<string | null>(null)
 const testOk = ref(false)
+
+// 修改密码
+const showPwd = ref(false)
+const pwdCurrent = ref('')
+const pwdNew = ref('')
+const pwdSaving = ref(false)
+const pwdMsg = ref<string | null>(null)
+const pwdOk = ref(false)
+
+function togglePwd() {
+  showPwd.value = !showPwd.value
+  if (!showPwd.value) {
+    pwdCurrent.value = ''
+    pwdNew.value = ''
+    pwdMsg.value = null
+  }
+}
+
+async function changePwd() {
+  if (!pwdCurrent.value || !pwdNew.value) return
+  if (pwdNew.value.length < 6) {
+    pwdMsg.value = '新密码至少6位'
+    pwdOk.value = false
+    return
+  }
+  pwdSaving.value = true
+  pwdMsg.value = null
+  try {
+    await api.post('/users/me/change-password', {
+      current_password: pwdCurrent.value,
+      new_password: pwdNew.value,
+    })
+    pwdOk.value = true
+    pwdMsg.value = '密码修改成功'
+    pwdCurrent.value = ''
+    pwdNew.value = ''
+  } catch (e: any) {
+    pwdOk.value = false
+    pwdMsg.value = e.response?.data?.detail || '修改失败'
+  } finally {
+    pwdSaving.value = false
+  }
+}
 
 onMounted(async () => {
   await auth.loadUserInfo()
@@ -400,6 +443,44 @@ async function testConnection() {
         </div>
       </div>
 
+      <!-- 修改密码 -->
+      <div class="card password-card" @click="!showPwd && (showPwd = true)">
+        <div class="card-row" @click="togglePwd">
+          <div class="card-row-left">
+            <Lock :size="18" />
+            <span>修改密码</span>
+          </div>
+          <ChevronRight :size="18" class="chevron" :class="{ open: showPwd }" />
+        </div>
+        <p class="mem-entry-hint">修改账号登录密码</p>
+        <div v-if="showPwd" class="pwd-panel" @click.stop>
+          <div class="pwd-field">
+            <input
+              v-model="pwdCurrent"
+              type="password"
+              class="pwd-input"
+              placeholder="当前密码"
+              @keyup.enter="changePwd"
+            />
+          </div>
+          <div class="pwd-field">
+            <input
+              v-model="pwdNew"
+              type="password"
+              class="pwd-input"
+              placeholder="新密码（至少6位）"
+              @keyup.enter="changePwd"
+            />
+          </div>
+          <button class="pwd-btn" :disabled="pwdSaving" @click="changePwd">
+            {{ pwdSaving ? '修改中...' : '确认修改' }}
+          </button>
+          <div v-if="pwdMsg" class="pwd-msg" :class="{ ok: pwdOk, fail: !pwdOk }">
+            {{ pwdMsg }}
+          </div>
+        </div>
+      </div>
+
       <!-- 记忆管理 -->
       <div class="card memory-entry-card" @click="toggleMemories">
         <div class="card-row">
@@ -761,6 +842,57 @@ async function testConnection() {
 .act-btn.danger { color: var(--color-error); }
 .act-btn.confirm { font-size: 10px; width: auto; padding: 0 6px; font-family: var(--font-body); font-weight: 600; }
 
+/* ── Password ── */
+.password-card {
+  border: 1.5px solid var(--color-warning-light, #fef3c7);
+  background: #fffbeb;
+}
+.pwd-panel {
+  margin-top: 12px;
+  padding: 14px;
+  background: var(--color-bg);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.pwd-field {
+  display: flex;
+  flex-direction: column;
+}
+.pwd-input {
+  padding: 6px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xs);
+  font-size: var(--text-sm);
+  font-family: var(--font-body);
+  color: var(--color-text);
+  background: var(--color-bg);
+  outline: none;
+}
+.pwd-input:focus { border-color: var(--color-primary); }
+.pwd-btn {
+  padding: 6px 16px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary);
+  color: #fff;
+  font-size: var(--text-sm);
+  font-family: var(--font-body);
+  font-weight: 600;
+  cursor: pointer;
+  align-self: flex-start;
+}
+.pwd-btn:hover:not(:disabled) { opacity: 0.9; }
+.pwd-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.pwd-msg {
+  font-size: var(--text-xs);
+  padding: 4px 8px;
+  border-radius: var(--radius-xs);
+}
+.pwd-msg.ok { color: var(--color-success); background: var(--color-success-light, #dcfce7); }
+.pwd-msg.fail { color: var(--color-error); background: #fef2f2; }
+
 /* ── API Key ── */
 .api-key-card {
   border: 1.5px solid var(--color-primary-light);
@@ -1010,4 +1142,37 @@ async function testConnection() {
 
 /* ── Logout ── */
 .logout-card .card-row { cursor: pointer; }
+
+@media (max-width: 768px) {
+  .profile-content {
+    padding: 12px 14px;
+    gap: 8px;
+  }
+  .card {
+    padding: 14px;
+  }
+  .profile-card {
+    padding: 20px 14px;
+  }
+  .config-display {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .config-item {
+    min-width: 45%;
+  }
+  .vendor-chips {
+    gap: 4px;
+  }
+  .vendor-chip {
+    font-size: 10px;
+    padding: 2px 8px;
+  }
+  .config-actions {
+    flex-wrap: wrap;
+  }
+  .mem-actions {
+    flex-wrap: wrap;
+  }
+}
 </style>

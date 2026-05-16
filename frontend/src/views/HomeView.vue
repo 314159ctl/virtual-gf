@@ -281,5 +281,21 @@ async function onCreateCharacter(data: { name: string; description: string; syst
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     gap: 12px;
   }
+  .home-title {
+    font-size: var(--text-xl);
+  }
+}
+
+@media (max-width: 480px) {
+  .home-content {
+    padding: 12px;
+  }
+  .char-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  .create-card {
+    min-height: 200px;
+  }
 }
 </style>

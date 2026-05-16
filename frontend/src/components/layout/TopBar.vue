@@ -145,4 +145,15 @@ function goAdmin() {
   border-radius: inherit; object-fit: cover;
 }
 
+@media (max-width: 768px) {
+  .top-bar {
+    padding: 0 12px;
+  }
+  .brand-text {
+    display: none;
+  }
+  .page-title {
+    font-size: var(--text-sm);
+  }
+}
 </style>

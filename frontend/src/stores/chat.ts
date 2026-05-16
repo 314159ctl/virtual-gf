@@ -394,6 +394,43 @@ export const useChatStore = defineStore('chat', () => {
     ws.value?.send(JSON.stringify({ type: 'chat', message: text, image }))
   }
 
+  async function recallMessage(msgId: string) {
+    const idx = messages.value.findIndex(m => m.id === msgId)
+    if (idx < 0) return
+    const msg = messages.value[idx]
+    // 撤回用户消息时，同时删除紧随的 AI 回复
+    if (msg.role === 'user') {
+      const next = messages.value[idx + 1]
+      if (next && next.role === 'assistant') {
+        messages.value.splice(idx, 2)
+        if (next.id) {
+          try { await api.delete(`/conversations/${currentConversation.value!.id}/messages/${next.id}`) } catch {}
+        }
+      } else {
+        messages.value.splice(idx, 1)
+      }
+    } else {
+      messages.value.splice(idx, 1)
+    }
+    if (msg.id) {
+      try { await api.delete(`/conversations/${currentConversation.value!.id}/messages/${msg.id}`) } catch {}
+    }
+  }
+
+  function retryMessage(aiMsgId: string) {
+    const idx = messages.value.findIndex(m => m.id === aiMsgId)
+    if (idx < 1) return
+    // 找到该 AI 回复前面的用户消息
+    const prev = messages.value[idx - 1]
+    if (prev.role !== 'user') return
+    const text = prev.content
+    const image = prev.metadata?.image_base64 || null
+    // 移除 AI 回复
+    messages.value.splice(idx, 1)
+    // 重发用户消息
+    sendMessage(text, image)
+  }
+
   return {
     characters, currentCharacter, conversations, currentConversation,
     messages, isStreaming, streamingContent, streamingComplete, emotionState,
@@ -403,5 +440,6 @@ export const useChatStore = defineStore('chat', () => {
     loadMessages, sendMessage, connectWebSocket, disconnectWebSocket, uploadAvatar,
     updateCharacter, deleteCharacter, loadMemories, updateMemory, deleteMemory,
     consolidating, consolidateMemories,
+    recallMessage, retryMessage,
   }
 })

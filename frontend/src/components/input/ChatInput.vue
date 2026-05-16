@@ -305,4 +305,32 @@ function onKeydown(e: KeyboardEvent) {
   left: 0;
   z-index: 100;
 }
+
+@media (max-width: 768px) {
+  .chat-input-area {
+    padding: 8px 12px 10px;
+  }
+  .input-row {
+    gap: 6px;
+  }
+  .tool-btn {
+    width: 36px;
+    height: 36px;
+  }
+  .send-btn {
+    width: 38px;
+    height: 38px;
+  }
+  .input-field {
+    font-size: 14px;
+    padding: 9px 12px;
+  }
+  .quick-actions {
+    gap: 4px;
+  }
+  .qa-chip {
+    font-size: 10px;
+    padding: 3px 10px;
+  }
+}
 </style>

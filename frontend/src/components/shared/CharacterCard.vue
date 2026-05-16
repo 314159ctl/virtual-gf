@@ -295,4 +295,19 @@ async function onFileChange(e: Event) {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+@media (max-width: 768px) {
+  .avatar-text {
+    font-size: 48px;
+  }
+  .card-info {
+    padding: 10px 12px;
+  }
+  .card-name {
+    font-size: var(--text-sm);
+  }
+  .enter-text {
+    font-size: var(--text-base);
+  }
+}
 </style>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import { RotateCcw, Trash2 } from 'lucide-vue-next'
 
 const props = defineProps<{
   role: 'user' | 'assistant'
@@ -10,14 +11,23 @@ const props = defineProps<{
   userAvatarUrl?: string | null
   contentType?: string
   metadata?: Record<string, any> | null
+  messageId?: string
+  index?: number
+  isLast?: boolean
 }>()
+
+const emit = defineEmits<{
+  recall: [id: string]
+  retry: [id: string]
+}>()
+
+const showActions = ref(false)
 
 const cleanContent = computed(() => {
   return props.content?.replace(/\[image[:：].*?\]/gis, '').trim() || ''
 })
 
 const hasText = computed(() => {
-  // 纯图片消息（content 只是占位符）不显示文字
   return cleanContent.value && cleanContent.value !== '[图片]'
 })
 </script>
@@ -36,7 +46,7 @@ const hasText = computed(() => {
       <span v-else>我</span>
     </div>
 
-    <div class="msg-content">
+    <div class="msg-content" @mouseenter="showActions = true" @mouseleave="showActions = false">
       <div class="msg-bubble" :class="role">
         <img
           v-if="contentType === 'image' && (metadata?.image_base64 || metadata?.image_url)"
@@ -46,8 +56,16 @@ const hasText = computed(() => {
         />
         <span v-if="hasText" class="msg-text">{{ cleanContent }}</span>
       </div>
-      <div class="msg-meta" v-if="time" :class="role">
-        <span class="msg-time">{{ time }}</span>
+      <div class="msg-meta" :class="role">
+        <span class="msg-time" v-if="time">{{ time }}</span>
+        <div v-if="showActions && messageId" class="msg-actions" :class="role">
+          <button v-if="role === 'user'" class="act-btn" title="撤回" @click.stop="emit('recall', messageId!)">
+            <Trash2 :size="12" />
+          </button>
+          <button v-if="role === 'assistant' && isLast" class="act-btn retry" title="重发" @click.stop="emit('retry', messageId!)">
+            <RotateCcw :size="12" />
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -171,8 +189,42 @@ const hasText = computed(() => {
   color: var(--color-text-muted);
 }
 
+.msg-actions {
+  display: flex;
+  gap: 2px;
+  margin-left: 4px;
+}
+.msg-actions.user { justify-content: flex-end; }
+.act-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px; height: 22px;
+  border: none; border-radius: var(--radius-xs);
+  background: var(--color-sakura);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+}
+.act-btn:hover { background: var(--color-error); color: #fff; }
+.act-btn.retry:hover { background: var(--color-primary); color: #fff; }
+
 @keyframes msgIn {
   from { opacity: 0; transform: translateY(10px) scale(0.97); }
   to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (max-width: 768px) {
+  .message {
+    max-width: 88%;
+  }
+  .msg-bubble {
+    font-size: 14px;
+    padding: 8px 12px;
+  }
+  .msg-image {
+    max-width: 180px;
+    max-height: 150px;
+  }
 }
 </style>
