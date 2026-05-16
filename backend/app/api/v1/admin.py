@@ -147,6 +147,8 @@ async def update_user(
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="用户不存在")
+    if user.id == _admin.id:
+        raise HTTPException(status_code=403, detail="不能修改自己的状态或会员等级")
 
     if data.is_active is not None:
         user.is_active = data.is_active

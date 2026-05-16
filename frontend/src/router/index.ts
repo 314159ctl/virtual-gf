@@ -46,12 +46,11 @@ const router = createRouter({
 router.beforeEach((to) => {
   const token = localStorage.getItem('access_token')
   if (to.path === '/auth') {
-    // 已登录用户访问登录页 → 跳回首页
     if (token) return '/'
     return true
   }
-  // 其他页面需要 token
   if (!token) return '/auth'
+  if (to.path === '/admin' && localStorage.getItem('is_admin') !== '1') return '/'
   return true
 })
 

@@ -51,6 +51,7 @@ export const useAuthStore = defineStore('auth', () => {
     userAvatar.value = res.data.avatar_url
     userEmail.value = res.data.email || ''
     isAdmin.value = res.data.is_admin || false
+    localStorage.setItem('is_admin', isAdmin.value ? '1' : '0')
     hasApiKey.value = res.data.has_api_key || false
     apiBaseUrl.value = res.data.api_base_url || null
     apiModel.value = res.data.api_model || null
@@ -80,6 +81,7 @@ export const useAuthStore = defineStore('auth', () => {
   function logout() {
     localStorage.removeItem('access_token')
     localStorage.removeItem('refresh_token')
+    localStorage.removeItem('is_admin')
     guestName.value = ''
     userAvatar.value = null
     userEmail.value = ''
