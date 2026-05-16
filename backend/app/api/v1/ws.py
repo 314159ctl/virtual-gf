@@ -451,7 +451,6 @@ async def chat_websocket(websocket: WebSocket, conversation_id: str):
                 full_reply = re.sub(r'[（(][^）)]*?[）)]', '', full_reply)
                 full_reply = re.sub(r'\*[^*]+?\*', '', full_reply)
                 full_reply = re.sub(r'【[^】]+?】', '', full_reply)
-                    full_reply = "[图片]"
 
                 tasks = [emotion_task]
                 if image_task:
