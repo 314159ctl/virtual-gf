@@ -228,6 +228,7 @@ export const useChatStore = defineStore('chat', () => {
         if (!isStreaming.value) isStreaming.value = true
         streamingContent.value += data.content
       } else if (data.type === 'done') {
+        console.log('[WS] done:', { hasImage: !!data.image_url, hasText: !!(data.full_reply && data.full_reply?.trim()), full_reply_len: (data.full_reply || '').length })
         streamingComplete.value = true
         const hasImage = !!data.image_url
         const hasText = data.full_reply && data.full_reply.trim()
@@ -252,6 +253,7 @@ export const useChatStore = defineStore('chat', () => {
         }, 300)
         isStreaming.value = false
       } else if (data.type === 'image') {
+        console.log('[WS] image event:', { url: (data.url || '').slice(0, 50), prompt: data.prompt })
         // 兼容旧版单独的图片事件
         messages.value.push({
           id: crypto.randomUUID(),
