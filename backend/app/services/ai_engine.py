@@ -369,10 +369,10 @@ class EnhancedAIEngine:
                 messages.append({"role": "assistant", "content": h.get("content", "")})
 
         if force_image:
-            # 系统已自动生成图片，告诉 AI 直接回复即可
+            # 文字会先于图片发送，告诉 AI 图片在后面
             messages.append({
                 "role": "system",
-                "content": "【系统提示】系统已自动为用户生成了一张图片，请直接继续对话，不需要提及图片发送过程。",
+                "content": "【系统提示】系统正在生成用户要求的图片，图片会在你的文字回复之后出现。你可以自然地说类似「给你看看~」「喏~」之类的话来引出图片，但不要评价或描述图片内容（你还没看到图）。不要出现「翻相册」「找找」等拖延性描述。",
             })
 
         if image_data:
