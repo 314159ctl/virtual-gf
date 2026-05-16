@@ -371,7 +371,7 @@ class EnhancedAIEngine:
         if force_image:
             messages.append({
                 "role": "system",
-                "content": "【系统指令】用户要求看图片。只需回复 [IMAGE:简短描述]，不要写任何其他文字。禁止推迟或使用 [发送了xxx] 代替。",
+                "content": "【系统指令】用户要求看图片。请在正常文字回复中插入 [IMAGE:简短英文描述] 标记，必须同时有对话文字和图片标记。禁止只发图片不发文字，禁止使用 [发送了xxx] 代替。",
             })
 
         if image_data:
