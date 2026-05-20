@@ -4,6 +4,15 @@ import api, { uploadApi } from '@/utils/http'
 import { useAuthStore } from '@/stores/auth'
 import type { Character, Conversation, Message, Memory } from '@/types/models'
 
+// HTTP (非 HTTPS) 下 crypto.randomUUID 不可用，使用 fallback
+function genUUID(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16)
+  })
+}
+
 export const useChatStore = defineStore('chat', () => {
   const characters = ref<Character[]>([])
   const currentCharacter = ref<Character | null>(null)
@@ -234,7 +243,7 @@ export const useChatStore = defineStore('chat', () => {
         const hasText = data.full_reply && data.full_reply.trim()
         if (hasText || hasImage) {
           messages.value.push({
-            id: crypto.randomUUID(),
+            id: genUUID(),
             role: 'assistant',
             content: data.full_reply || '',
             content_type: hasImage ? 'image' : 'text',
@@ -256,7 +265,7 @@ export const useChatStore = defineStore('chat', () => {
         console.log('[WS] image event:', { url: (data.url || '').slice(0, 50), prompt: data.prompt })
         // 兼容旧版单独的图片事件
         messages.value.push({
-          id: crypto.randomUUID(),
+          id: genUUID(),
           role: 'assistant',
           content: data.prompt || '',
           content_type: 'image',
@@ -280,7 +289,7 @@ export const useChatStore = defineStore('chat', () => {
         }
         const msg = errorMessages[data.code] || data.message || 'AI 调用失败'
         messages.value.push({
-          id: crypto.randomUUID(),
+          id: genUUID(),
           role: 'assistant',
           content: msg,
           content_type: 'text',
@@ -293,7 +302,7 @@ export const useChatStore = defineStore('chat', () => {
         streamingContent.value = ''
         streamingComplete.value = false
         messages.value.push({
-          id: crypto.randomUUID(),
+          id: genUUID(),
           role: 'assistant',
           content: '呜…刚才好像出了点问题 (′；ω；`) 能再说一遍吗？',
           content_type: 'text',
@@ -341,7 +350,7 @@ export const useChatStore = defineStore('chat', () => {
     }
     // 先将用户消息立即显示在 UI
     messages.value.push({
-      id: crypto.randomUUID(),
+      id: genUUID(),
       role: 'user',
       content: text || '[图片]',
       content_type: image ? 'image' : 'text',
@@ -380,7 +389,7 @@ export const useChatStore = defineStore('chat', () => {
 
   function _send(text: string, image?: string | null) {
     messages.value.push({
-      id: crypto.randomUUID(),
+      id: genUUID(),
       role: 'user',
       content: text || '[图片]',
       content_type: image ? 'image' : 'text',
