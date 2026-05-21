@@ -44,6 +44,12 @@ export const useAuthStore = defineStore('auth', () => {
   const apiBaseUrl = ref<string | null>(null)
   const apiModel = ref<string | null>(null)
   const showApiKeyWarning = ref(false)
+  const userAvatarVersion = ref(0)
+
+  function getUserAvatarUrl(): string {
+    if (!userAvatar.value) return ''
+    return userAvatarVersion.value > 0 ? `${userAvatar.value}?v=${userAvatarVersion.value}` : userAvatar.value
+  }
 
   async function loadUserInfo() {
     const res = await api.get<{ email: string; username: string; avatar_url: string | null; is_admin: boolean; has_api_key: boolean; api_base_url: string | null; api_model: string | null }>('/users/me')
@@ -96,5 +102,5 @@ export const useAuthStore = defineStore('auth', () => {
     showApiKeyWarning.value = false
   }
 
-  return { guestName, userAvatar, userEmail, authChecked, isLoggedIn, isAdmin, hasToken, hasApiKey, apiBaseUrl, apiModel, showApiKeyWarning, checkAuth, loadUserInfo, updateProfile, login, register, logout, promptApiKey, dismissApiKeyWarning }
+  return { guestName, userAvatar, userEmail, authChecked, isLoggedIn, isAdmin, hasToken, hasApiKey, apiBaseUrl, apiModel, showApiKeyWarning, userAvatarVersion, getUserAvatarUrl, checkAuth, loadUserInfo, updateProfile, login, register, logout, promptApiKey, dismissApiKeyWarning }
 })

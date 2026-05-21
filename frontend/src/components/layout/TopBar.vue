@@ -48,7 +48,7 @@ function goAdmin() {
         <Shield :size="18" />
       </button>
       <div class="user-avatar" @click="goProfile" title="个人中心">
-        <img v-if="userAvatar" :src="userAvatar" class="avatar-img" alt="" />
+        <img v-if="userAvatar" :src="auth.getUserAvatarUrl()" class="avatar-img" alt="" />
         <span v-else>{{ guestName?.[0] || '?' }}</span>
       </div>
     </div>

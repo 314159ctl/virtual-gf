@@ -9,6 +9,8 @@ const emit = defineEmits<{
   send: [message: string, image: string | null]
 }>()
 
+const isMobile = /Mobi|Android|iPhone/i.test(navigator.userAgent)
+
 const text = ref('')
 const { selectedImage, previewUrl, fileInput, selectFile, onFileSelected, onPaste, clearImage } = useImageUpload()
 
@@ -65,7 +67,7 @@ function onSubmit() {
 }
 
 function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'Enter' && !e.shiftKey) {
+  if (e.key === 'Enter' && !e.shiftKey && !isMobile) {
     e.preventDefault()
     onSubmit()
   }
@@ -137,7 +139,8 @@ function onKeydown(e: KeyboardEvent) {
       <button type="button" class="qa-toggle" @click="showQuickActions = !showQuickActions">
         {{ showQuickActions ? '收起' : '快捷消息' }}
       </button>
-      <div class="input-hint">Enter 发送 · Shift + Enter 换行</div>
+      <div v-if="isMobile" class="input-hint">点击右侧按钮发送</div>
+      <div v-else class="input-hint">Enter 发送 · Shift + Enter 换行</div>
     </div>
   </div>
 </template>

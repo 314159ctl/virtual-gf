@@ -100,6 +100,7 @@ async function uploadAvatar(e: Event) {
     form.append('file', file)
     const res = await uploadApi.post<{ avatar_url: string | null }>('/users/me/avatar', form)
     userAvatar.value = res.data.avatar_url
+    auth.userAvatarVersion++
   } catch {
     // silently fail
   } finally {
@@ -283,7 +284,7 @@ async function testConnection() {
       <!-- 个人信息卡 -->
       <div class="card profile-card">
         <div class="avatar-section" @click="triggerAvatar" :class="{ uploading }">
-          <img v-if="userAvatar" :src="userAvatar" class="profile-avatar-img" alt="" />
+          <img v-if="userAvatar" :src="auth.getUserAvatarUrl()" class="profile-avatar-img" alt="" />
           <span v-else class="profile-avatar-text">{{ guestName?.[0] || '?' }}</span>
           <div class="avatar-edit-overlay">
             <Camera :size="16" />

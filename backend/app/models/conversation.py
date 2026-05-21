@@ -26,4 +26,5 @@ class Conversation(Base, UUIDMixin, TimestampMixin):
     user = relationship("User", back_populates="conversations")
     character = relationship("Character", back_populates="conversations")
     messages = relationship("Message", back_populates="conversation", lazy="dynamic",
-                            order_by="Message.created_at")
+                            order_by="Message.created_at", cascade="all, delete-orphan",
+                            passive_deletes=True)

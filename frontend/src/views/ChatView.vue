@@ -108,8 +108,9 @@ async function deleteCurrentConv() {
     >
       <template #actions>
         <button
+          type="button"
           class="action-btn"
-          :disabled="deletingConv"
+          :disabled="deletingConv || !chat.currentConversation"
           title="删除对话"
           @click="deleteCurrentConv"
         >
@@ -150,7 +151,7 @@ async function deleteCurrentConv() {
           :message-id="m.id"
           :is-last="i === displayMessages.length - 1"
           :avatar-name="m.role === 'assistant' ? currentCharacter?.name?.[0] : undefined"
-          :avatar-url="m.role === 'assistant' ? currentCharacter?.avatar_url : undefined"
+          :avatar-url="m.role === 'assistant' ? chat.getAvatarUrl(currentCharacter?.avatar_url, currentCharacter?.id) : undefined"
           :user-avatar-url="m.role === 'user' ? userAvatar : undefined"
           @recall="onRecall"
           @retry="onRetry"
@@ -160,7 +161,7 @@ async function deleteCurrentConv() {
           v-if="isStreaming && streamingContent"
           :content="streamingContent"
           :avatar-name="currentCharacter?.name?.[0]"
-          :avatar-url="currentCharacter?.avatar_url"
+          :avatar-url="chat.getAvatarUrl(currentCharacter?.avatar_url, currentCharacter?.id)"
         />
 
         <TypingIndicator v-if="isStreaming && !streamingContent" />

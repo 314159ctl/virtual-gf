@@ -152,6 +152,7 @@ export const useChatStore = defineStore('chat', () => {
     const idx = characters.value.findIndex(c => c.id === characterId)
     if (idx >= 0) characters.value[idx] = res.data
     if (currentCharacter.value?.id === characterId) currentCharacter.value = res.data
+    characterAvatarVersion.value[characterId] = (characterAvatarVersion.value[characterId] || 0) + 1
     return res.data
   }
 
@@ -190,6 +191,14 @@ export const useChatStore = defineStore('chat', () => {
   async function deleteMemory(id: string) {
     await api.delete(`/memories/${id}`)
     memories.value = memories.value.filter(m => m.id !== id)
+  }
+
+  const characterAvatarVersion = ref<Record<string, number>>({})
+
+  function getAvatarUrl(avatarUrl: string | null | undefined, characterId?: string): string {
+    if (!avatarUrl) return ''
+    const v = characterId ? (characterAvatarVersion.value[characterId] || 0) : 0
+    return v > 0 ? `${avatarUrl}?v=${v}` : avatarUrl
   }
 
   const consolidating = ref(false)
@@ -434,8 +443,16 @@ export const useChatStore = defineStore('chat', () => {
     if (prev.role !== 'user') return
     const text = prev.content
     const image = prev.metadata?.image_base64 || null
-    // 移除 AI 回复
-    messages.value.splice(idx, 1)
+    const prevId = prev.id
+    // 从 DB 删除原用户消息和 AI 回复
+    if (prevId) {
+      try { api.delete(`/conversations/${currentConversation.value!.id}/messages/${prevId}`) } catch {}
+    }
+    if (aiMsgId) {
+      try { api.delete(`/conversations/${currentConversation.value!.id}/messages/${aiMsgId}`) } catch {}
+    }
+    // 移除本地原用户消息和 AI 回复
+    messages.value.splice(idx - 1, 2)
     // 重发用户消息
     sendMessage(text, image)
   }
@@ -449,6 +466,7 @@ export const useChatStore = defineStore('chat', () => {
     loadMessages, sendMessage, connectWebSocket, disconnectWebSocket, uploadAvatar,
     updateCharacter, deleteCharacter, loadMemories, updateMemory, deleteMemory,
     consolidating, consolidateMemories,
+    getAvatarUrl,
     recallMessage, retryMessage,
   }
 })

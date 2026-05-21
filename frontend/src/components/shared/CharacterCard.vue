@@ -18,6 +18,12 @@ const router = useRouter()
 const chat = useChatStore()
 const fileInput = ref<HTMLInputElement | null>(null)
 const uploading = ref(false)
+const avatarVersion = ref(0)
+
+const avatarSrc = computed(() => {
+  if (!props.character.avatar_url) return ''
+  return `${props.character.avatar_url}?v=${avatarVersion.value}`
+})
 
 const gradients = [
   'linear-gradient(135deg, #FF7DAF, #C4A1FF)',
@@ -51,6 +57,7 @@ async function onFileChange(e: Event) {
   uploading.value = true
   try {
     await chat.uploadAvatar(props.character.id, file)
+    avatarVersion.value++
   } catch {
     // silently fail
   } finally {
@@ -67,7 +74,7 @@ async function onFileChange(e: Event) {
       :style="character.avatar_url ? {} : { background: gradients[Math.abs(character.name.charCodeAt(0)) % gradients.length] }"
       @click="emit('select')"
     >
-      <img v-if="character.avatar_url" :src="character.avatar_url" class="avatar-img" alt="" />
+      <img v-if="character.avatar_url" :src="avatarSrc" class="avatar-img" alt="" />
       <span v-else class="avatar-text">{{ character.name[0] }}</span>
       <!-- 换头像按钮 -->
       <div class="avatar-edit" @click.stop="triggerUpload" :class="{ uploading }" title="更换头像">
