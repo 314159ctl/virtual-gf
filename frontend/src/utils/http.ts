@@ -23,11 +23,16 @@ function addAuthInterceptor(instance: ReturnType<typeof axios.create>) {
   })
 
   // 响应拦截：401 时尝试刷新 token，失败则清除并跳转登录页
+  // 登录/注册接口的 401 是凭证错误，不触发跳转
   instance.interceptors.response.use(
     (res) => res,
     async (error) => {
       const original = error.config
       if (error.response?.status === 401 && !original._retry) {
+        const url = original.url || ''
+        if (url.includes('/auth/login') || url.includes('/auth/register')) {
+          return Promise.reject(error)
+        }
         original._retry = true
         const refreshToken = localStorage.getItem('refresh_token')
         if (refreshToken) {
