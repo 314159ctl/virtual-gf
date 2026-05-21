@@ -83,6 +83,7 @@ export const useAuthStore = defineStore('auth', () => {
     const res = await api.post<AuthTokens>('/auth/register', { email, username, password, captcha_id: captchaId, captcha_code: captchaCode })
     localStorage.setItem('access_token', res.data.access_token)
     localStorage.setItem('refresh_token', res.data.refresh_token)
+    localStorage.removeItem('guide_read') // 新用户注册后强制弹出使用指南
     await loadUserInfo()
   }
 

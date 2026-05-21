@@ -209,7 +209,7 @@ function cancelEditApiKey() {
 
 // 厂商预设
 const VENDOR_PRESETS = [
-  { name: 'DeepSeek', base_url: 'https://api.deepseek.com/v1', model: 'deepseek-chat' },
+  { name: 'DeepSeek', base_url: 'https://api.deepseek.com/v1', model: 'deepseek-v4-pro' },
   { name: '硅基流动', base_url: 'https://api.siliconflow.cn/v1', model: 'deepseek-ai/DeepSeek-V3' },
   { name: 'OpenAI', base_url: 'https://api.openai.com/v1', model: 'gpt-4o' },
 ]
