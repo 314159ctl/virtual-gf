@@ -320,10 +320,10 @@ async function doRegister() {
       </form>
 
       <!-- Footer -->
-      <p v-if="tab === 'login' && !mustChangePwd" class="auth-footer">
+      <p v-if="tab === 'login' && !mustChangePwd" class="auth-footer auth-forgot">
         忘记密码？请联系管理员重置
       </p>
-      <p v-if="tab !== 'login' || mustChangePwd" class="auth-footer">
+      <p v-if="!mustChangePwd" class="auth-footer">
         {{ tab === 'login' ? '还没有账号？' : '已有账号？' }}
         <button type="button" class="link-btn" @click="switchTab(tab === 'login' ? 'register' : 'login')">
           {{ tab === 'login' ? '立即注册' : '去登录' }}
