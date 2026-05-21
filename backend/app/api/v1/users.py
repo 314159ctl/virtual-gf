@@ -109,7 +109,7 @@ async def change_password(
 @router.post("/me/test-api")
 async def test_api_connection(current_user: User = Depends(get_current_user)):
     """测试 API 连接：用用户配置的 Key/URL/Model 发一条极短消息验证连通性"""
-    api_key = decrypt_api_key(current_user.api_key_encrypted) if current_user.api_key_encrypted else settings.deepseek_api_key
+    api_key = decrypt_api_key(current_user.api_key_encrypted) if current_user.api_key_encrypted else None
     base_url = current_user.api_base_url or settings.deepseek_base_url
     model = current_user.api_model or settings.deepseek_model
 
