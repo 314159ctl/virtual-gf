@@ -9,6 +9,7 @@ import TopBar from '@/components/layout/TopBar.vue'
 import CharacterCard from '@/components/shared/CharacterCard.vue'
 import CreateCharacterForm from '@/components/shared/CreateCharacterForm.vue'
 import BaseModal from '@/components/shared/BaseModal.vue'
+import GuideModal from '@/components/shared/GuideModal.vue'
 import type { Character } from '@/types/models'
 
 const router = useRouter()
@@ -25,9 +26,15 @@ const showDeleteModal = computed(() => charToDelete.value !== null)
 const deleting = ref(false)
 const deleteError = ref('')
 
+// 新用户指南
+const showGuide = ref(false)
+
 onMounted(async () => {
   await chat.loadCharacters()
   await auth.loadUserInfo()
+  if (!localStorage.getItem('guide_read')) {
+    showGuide.value = true
+  }
 })
 
 async function onSelectCharacter(characterId: string) {
@@ -90,7 +97,10 @@ async function onCreateCharacter(data: { name: string; description: string; syst
 
     <div class="home-content">
       <div class="home-header">
-        <h2 class="home-title">选择你的角色</h2>
+        <div class="home-header-row">
+          <h2 class="home-title">选择你的角色</h2>
+          <button class="help-btn" @click="showGuide = true" title="使用帮助">?</button>
+        </div>
         <p class="home-subtitle">点击角色卡片开始对话</p>
       </div>
 
@@ -136,6 +146,9 @@ async function onCreateCharacter(data: { name: string; description: string; syst
         </button>
       </template>
     </BaseModal>
+
+    <!-- 新用户指南 -->
+    <GuideModal v-if="showGuide" @close="showGuide = false" />
   </div>
 </template>
 
@@ -157,12 +170,40 @@ async function onCreateCharacter(data: { name: string; description: string; syst
   margin-bottom: 28px;
 }
 
+.home-header-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.help-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1.5px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: 13px;
+  font-weight: 700;
+  font-family: var(--font-heading);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--duration-fast);
+}
+.help-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: var(--color-sakura-light);
+}
+
 .home-title {
   font-family: var(--font-heading);
   font-size: var(--text-2xl);
   font-weight: 700;
   color: var(--color-text);
-  margin-bottom: 6px;
 }
 
 .home-subtitle {
