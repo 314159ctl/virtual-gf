@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { Sparkles, RefreshCw } from 'lucide-vue-next'
+import { Sparkles, RefreshCw, Eye, EyeOff } from 'lucide-vue-next'
 import api from '@/utils/http'
 
 const router = useRouter()
@@ -39,6 +39,11 @@ const regEmail = ref('')
 const regUsername = ref('')
 const regPassword = ref('')
 const regConfirm = ref('')
+
+// 密码可见性
+const showLoginPwd = ref(false)
+const showRegPwd = ref(false)
+const showRegConfirm = ref(false)
 
 const canLogin = computed(() => loginEmail.value.trim() && loginPassword.value.trim())
 const canRegister = computed(() => {
@@ -106,13 +111,19 @@ async function doRegister() {
         </div>
         <div class="form-group">
           <label class="form-label">密码</label>
-          <input
-            v-model="loginPassword"
-            type="password"
-            class="form-input"
-            placeholder="请输入密码"
-            autocomplete="current-password"
-          />
+          <div class="pwd-wrap">
+            <input
+              v-model="loginPassword"
+              :type="showLoginPwd ? 'text' : 'password'"
+              class="form-input"
+              placeholder="请输入密码"
+              autocomplete="current-password"
+            />
+            <button type="button" class="pwd-toggle" @click="showLoginPwd = !showLoginPwd" tabindex="-1">
+              <EyeOff v-if="showLoginPwd" :size="16" />
+              <Eye v-else :size="16" />
+            </button>
+          </div>
         </div>
 
         <div class="form-group">
@@ -168,23 +179,35 @@ async function doRegister() {
         </div>
         <div class="form-group">
           <label class="form-label">密码</label>
-          <input
-            v-model="regPassword"
-            type="password"
-            class="form-input"
-            placeholder="至少 6 位密码"
-            autocomplete="new-password"
-          />
+          <div class="pwd-wrap">
+            <input
+              v-model="regPassword"
+              :type="showRegPwd ? 'text' : 'password'"
+              class="form-input"
+              placeholder="至少 6 位密码"
+              autocomplete="new-password"
+            />
+            <button type="button" class="pwd-toggle" @click="showRegPwd = !showRegPwd" tabindex="-1">
+              <EyeOff v-if="showRegPwd" :size="16" />
+              <Eye v-else :size="16" />
+            </button>
+          </div>
         </div>
         <div class="form-group">
           <label class="form-label">确认密码</label>
-          <input
-            v-model="regConfirm"
-            type="password"
-            class="form-input"
-            placeholder="再次输入密码"
-            autocomplete="new-password"
-          />
+          <div class="pwd-wrap">
+            <input
+              v-model="regConfirm"
+              :type="showRegConfirm ? 'text' : 'password'"
+              class="form-input"
+              placeholder="再次输入密码"
+              autocomplete="new-password"
+            />
+            <button type="button" class="pwd-toggle" @click="showRegConfirm = !showRegConfirm" tabindex="-1">
+              <EyeOff v-if="showRegConfirm" :size="16" />
+              <Eye v-else :size="16" />
+            </button>
+          </div>
         </div>
 
         <div class="form-group">
@@ -298,6 +321,34 @@ async function doRegister() {
 .form-input:focus {
   border-color: var(--color-primary);
   box-shadow: 0 0 0 3px rgba(255,125,175,0.08);
+}
+
+.pwd-wrap {
+  position: relative;
+  display: flex;
+}
+.pwd-wrap .form-input {
+  padding-right: 38px;
+}
+.pwd-toggle {
+  position: absolute;
+  right: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 34px;
+  height: 34px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-xs);
+  transition: color var(--duration-fast);
+}
+.pwd-toggle:hover {
+  color: var(--color-text-secondary);
 }
 
 .btn-submit {
