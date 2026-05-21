@@ -110,6 +110,7 @@ async function onGenerate() {
     error.value = '请先描述你想要的角色'
     return
   }
+  if (!auth.hasApiKey) { auth.promptApiKey(); return }
   error.value = ''
   generating.value = true
   try {
