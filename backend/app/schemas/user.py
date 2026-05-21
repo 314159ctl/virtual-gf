@@ -10,6 +10,8 @@ class UserRegister(BaseModel):
     email: str
     username: str
     password: str
+    captcha_id: str | None = None
+    captcha_code: str | None = None
 
 
 class UserLogin(BaseModel):

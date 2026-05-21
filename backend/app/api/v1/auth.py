@@ -20,7 +20,7 @@ router = APIRouter()
 @router.get("/captcha")
 async def get_captcha():
     """获取图形验证码"""
-    return generate_captcha()
+    return await generate_captcha()
 
 
 @router.post("/guest", response_model=TokenResponse)
@@ -47,9 +47,13 @@ async def guest_login(db: AsyncSession = Depends(get_db)):
     return TokenResponse(access_token=access_token, refresh_token=refresh_token)
 
 
-@router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 async def register(data: UserRegister, db: AsyncSession = Depends(get_db)):
-    """注册新用户，并自动复制默认角色"""
+    """注册新用户，并自动复制默认角色，直接返回 token"""
+    # 验证码校验
+    if not await verify_captcha(data.captcha_id or "", data.captcha_code or ""):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="验证码错误或已过期")
+
     # 检查邮箱是否已存在
     existing = await db.execute(select(User).where(User.email == data.email))
     if existing.scalar_one_or_none():
@@ -73,14 +77,16 @@ async def register(data: UserRegister, db: AsyncSession = Depends(get_db)):
     from app.api.v1.characters import _copy_defaults_for_user
     await _copy_defaults_for_user(db, user.id)
 
-    return user
+    access_token = create_access_token(str(user.id), user.membership_tier)
+    refresh_token = create_refresh_token(str(user.id))
+    return TokenResponse(access_token=access_token, refresh_token=refresh_token)
 
 
 @router.post("/login", response_model=TokenResponse)
 async def login(data: UserLogin, db: AsyncSession = Depends(get_db)):
     """登录，返回 JWT 令牌对"""
     # 验证码校验
-    if not verify_captcha(data.captcha_id or "", data.captcha_code or ""):
+    if not await verify_captcha(data.captcha_id or "", data.captcha_code or ""):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="验证码错误或已过期")
 
     result = await db.execute(select(User).where(User.email == data.email))

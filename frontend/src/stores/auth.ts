@@ -79,9 +79,11 @@ export const useAuthStore = defineStore('auth', () => {
     await loadUserInfo()
   }
 
-  async function register(email: string, username: string, password: string) {
-    await api.post('/auth/register', { email, username, password })
-    await login(email, password)
+  async function register(email: string, username: string, password: string, captchaId?: string, captchaCode?: string) {
+    const res = await api.post<AuthTokens>('/auth/register', { email, username, password, captcha_id: captchaId, captcha_code: captchaCode })
+    localStorage.setItem('access_token', res.data.access_token)
+    localStorage.setItem('refresh_token', res.data.refresh_token)
+    await loadUserInfo()
   }
 
   function logout() {

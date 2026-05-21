@@ -1,28 +1,22 @@
-"""SVG 图形验证码 — 零依赖，内存存储 + TTL 自动清理"""
+"""SVG 图形验证码 — Redis 存储，服务重启不丢失"""
 
 import base64
 import random
-import string
-import time
 import uuid
 
-# 内存存储 {captcha_id: (code, expires_at)}
-_store: dict[str, tuple[str, float]] = {}
+import redis.asyncio as aioredis
+
+from app.core.config import settings
+
 TTL = 300  # 5 分钟
 
 
-def _cleanup():
-    """清理过期验证码"""
-    now = time.time()
-    expired = [k for k, (_, exp) in _store.items() if now > exp]
-    for k in expired:
-        del _store[k]
+def _key(captcha_id: str) -> str:
+    return f"captcha:{captcha_id}"
 
 
-def generate_captcha() -> dict:
+async def generate_captcha() -> dict:
     """生成 SVG 验证码，返回 {captcha_id, captcha_image}"""
-    _cleanup()
-
     # 4 位随机字母数字（排除易混淆字符 0O1Il）
     chars = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
     code = "".join(random.choices(chars, k=4))
@@ -30,7 +24,9 @@ def generate_captcha() -> dict:
     svg = _render_svg(code)
 
     captcha_id = uuid.uuid4().hex[:12]
-    _store[captcha_id] = (code, time.time() + TTL)
+    r = aioredis.from_url(settings.redis_url)
+    await r.setex(_key(captcha_id), TTL, code)
+    await r.aclose()
 
     svg_b64 = base64.b64encode(svg.encode()).decode()
     return {
@@ -39,16 +35,19 @@ def generate_captcha() -> dict:
     }
 
 
-def verify_captcha(captcha_id: str, captcha_code: str) -> bool:
+async def verify_captcha(captcha_id: str, captcha_code: str) -> bool:
     """校验验证码，无论对错都删除（一次性使用）"""
-    _cleanup()
-    entry = _store.pop(captcha_id, None)
-    if not entry:
+    if not captcha_id or not captcha_code:
         return False
-    stored_code, expires_at = entry
-    if time.time() > expires_at:
+
+    r = aioredis.from_url(settings.redis_url)
+    key = _key(captcha_id)
+    stored = await r.getdel(key)
+    await r.aclose()
+
+    if not stored:
         return False
-    return captcha_code.strip().upper() == stored_code.upper()
+    return captcha_code.strip().upper() == stored.decode().upper()
 
 
 def _render_svg(code: str) -> str:

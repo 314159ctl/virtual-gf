@@ -71,10 +71,11 @@ async function doRegister() {
   error.value = ''
   loading.value = true
   try {
-    await auth.register(regEmail.value.trim(), regUsername.value.trim(), regPassword.value)
+    await auth.register(regEmail.value.trim(), regUsername.value.trim(), regPassword.value, captchaId.value, captchaCode.value)
     router.replace('/')
   } catch (e: any) {
     error.value = e?.response?.data?.detail || e?.message || '注册失败，请重试'
+    loadCaptcha()
   } finally {
     loading.value = false
   }
@@ -183,8 +184,26 @@ async function doRegister() {
             class="form-input"
             placeholder="再次输入密码"
             autocomplete="new-password"
-            @keyup.enter="doRegister"
           />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">验证码</label>
+          <div class="captcha-row">
+            <img v-if="captchaImage" :src="captchaImage" class="captcha-img" alt="验证码" @click="loadCaptcha" title="点击刷新" />
+            <input
+              v-model="captchaCode"
+              type="text"
+              class="form-input captcha-input"
+              placeholder="输入验证码"
+              maxlength="4"
+              autocomplete="off"
+              @keyup.enter="doRegister"
+            />
+            <button type="button" class="captcha-refresh" @click="loadCaptcha" title="刷新验证码">
+              <RefreshCw :size="14" />
+            </button>
+          </div>
         </div>
 
         <p v-if="error" class="error-msg">{{ error }}</p>
