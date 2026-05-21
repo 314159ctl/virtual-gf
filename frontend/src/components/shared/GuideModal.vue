@@ -39,7 +39,7 @@ const steps = [
       '点击右上角头像 → 进入「个人中心」→ 找到「API 配置」区域',
       'API Key：粘贴你刚才从 DeepSeek 复制的那串 sk-xxxxx',
       '接口地址：填 https://api.deepseek.com/v1（照抄就行，别改）',
-      '模型名称：填 deepseek-chat（也是照抄，别改）',
+      '模型名称：填 deepseek-v4-pro（也是照抄，别改）',
       '点「测试连接」，看到绿色 ✓ 就说明成功了，点保存即可',
     ],
   },
