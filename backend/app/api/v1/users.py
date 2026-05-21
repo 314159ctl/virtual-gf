@@ -102,6 +102,7 @@ async def change_password(
     if len(data.new_password) < 6:
         raise HTTPException(status_code=400, detail="新密码至少6位")
     current_user.password_hash = hash_password(data.new_password)
+    current_user.must_change_password = False
     await db.flush()
     return {"message": "密码修改成功"}
 

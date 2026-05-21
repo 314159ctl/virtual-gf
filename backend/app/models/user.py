@@ -24,6 +24,7 @@ class User(Base, UUIDMixin, TimestampMixin):
     api_model: Mapped[str | None] = mapped_column(String(100), nullable=True)
     is_admin: Mapped[bool] = mapped_column(default=False)
     is_active: Mapped[bool] = mapped_column(default=True)
+    must_change_password: Mapped[bool] = mapped_column(default=False)
 
     # 关系
     characters = relationship("Character", back_populates="owner", lazy="dynamic")

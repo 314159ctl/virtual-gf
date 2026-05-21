@@ -98,6 +98,25 @@ async function onSetTier(user: UserItem, tier: string) {
   } catch { /* ignore */ }
 }
 
+const resettingUserId = ref<string | null>(null)
+const tempPassword = ref('')
+const tempPasswordUser = ref('')
+
+async function onResetPassword(user: UserItem) {
+  resettingUserId.value = user.id
+  try {
+    const res = await api.post<{ temp_password: string; username: string }>(`/admin/users/${user.id}/reset-password`)
+    tempPassword.value = res.data.temp_password
+    tempPasswordUser.value = res.data.username
+  } catch { /* ignore */ }
+  finally { resettingUserId.value = null }
+}
+
+function closePwdDialog() {
+  tempPassword.value = ''
+  tempPasswordUser.value = ''
+}
+
 // ── 系统 API 配置 ──
 const sysSettings = ref<SystemSettings>({
   painting_enabled: true, painting_api_key: '', painting_base_url: '', painting_model: '', painting_size: '2048x2048',
@@ -150,11 +169,26 @@ onMounted(() => { loadStats(); loadUsers(); loadSettings() })
         :page-size="pageSize"
         :loading="loading"
         :error="error"
+        :resetting-user-id="resettingUserId"
         @search="onSearch"
         @update:page="onPageChange"
         @toggle-active="onToggleActive"
         @set-tier="onSetTier"
+        @reset-password="onResetPassword"
       />
+
+      <!-- 临时密码弹窗 -->
+      <div v-if="tempPassword" class="pwd-dialog-overlay" @click.self="closePwdDialog">
+        <div class="pwd-dialog">
+          <h3>密码已重置</h3>
+          <p class="pwd-dialog-user">用户：<strong>{{ tempPasswordUser }}</strong></p>
+          <div class="temp-pwd-box">
+            <code>{{ tempPassword }}</code>
+          </div>
+          <p class="pwd-dialog-note">请将临时密码发送给用户，首次登录后需要修改密码</p>
+          <button class="btn-submit" @click="closePwdDialog">确定</button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -171,6 +205,52 @@ onMounted(() => { loadStats(); loadUsers(); loadSettings() })
   flex: 1;
   overflow-y: auto;
   padding: 24px 28px 32px;
+}
+
+.pwd-dialog-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.4);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100;
+}
+.pwd-dialog {
+  background: var(--color-surface);
+  border-radius: 16px;
+  padding: 28px 24px 20px;
+  width: 360px; max-width: 90vw;
+  text-align: center;
+  box-shadow: var(--shadow-lg);
+}
+.pwd-dialog h3 {
+  font-family: var(--font-heading);
+  font-size: 16px; font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: 8px;
+}
+.pwd-dialog-user {
+  font-size: 13px; color: var(--color-text-muted);
+  margin-bottom: 14px;
+}
+.temp-pwd-box {
+  background: var(--color-bg);
+  border: 1.5px dashed var(--color-primary);
+  border-radius: 8px;
+  padding: 14px;
+  margin-bottom: 10px;
+}
+.temp-pwd-box code {
+  font-size: 18px; font-weight: 700;
+  color: var(--color-primary-dark);
+  letter-spacing: 1px;
+  font-family: 'Courier New', monospace;
+  word-break: break-all;
+}
+.pwd-dialog-note {
+  font-size: 12px; color: var(--color-text-muted);
+  margin-bottom: 16px;
+}
+.pwd-dialog .btn-submit {
+  width: 100%;
 }
 
 @media (max-width: 768px) {

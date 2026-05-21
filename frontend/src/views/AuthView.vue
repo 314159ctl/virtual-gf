@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { Sparkles, RefreshCw, Eye, EyeOff } from 'lucide-vue-next'
+import { Sparkles, RefreshCw, Eye, EyeOff, LogIn } from 'lucide-vue-next'
 import api from '@/utils/http'
 
 const router = useRouter()
@@ -45,11 +45,22 @@ const showLoginPwd = ref(false)
 const showRegPwd = ref(false)
 const showRegConfirm = ref(false)
 
+// 强制改密
+const mustChangePwd = ref(false)
+const newPassword = ref('')
+const newPasswordConfirm = ref('')
+const changingPwd = ref(false)
+const showNewPwd = ref(false)
+const showNewPwdConfirm = ref(false)
+
 const canLogin = computed(() => loginEmail.value.trim() && loginPassword.value.trim())
 const canRegister = computed(() => {
   return regEmail.value.trim() && regUsername.value.trim() &&
     regPassword.value.length >= 6 && regConfirm.value === regPassword.value
 })
+const canChangePwd = computed(() =>
+  newPassword.value.length >= 6 && newPasswordConfirm.value === newPassword.value
+)
 
 function switchTab(t: 'login' | 'register') {
   tab.value = t
@@ -61,13 +72,35 @@ async function doLogin() {
   error.value = ''
   loading.value = true
   try {
-    await auth.login(loginEmail.value.trim(), loginPassword.value, captchaId.value, captchaCode.value)
-    router.replace('/')
+    const needChange = await auth.login(loginEmail.value.trim(), loginPassword.value, captchaId.value, captchaCode.value)
+    if (needChange) {
+      mustChangePwd.value = true
+    } else {
+      router.replace('/')
+    }
   } catch (e: any) {
     error.value = e?.response?.data?.detail || e?.message || '登录失败，请重试'
     loadCaptcha()
   } finally {
     loading.value = false
+  }
+}
+
+async function doChangePassword() {
+  if (!canChangePwd.value) return
+  error.value = ''
+  changingPwd.value = true
+  try {
+    await api.post('/users/me/change-password', {
+      current_password: loginPassword.value,
+      new_password: newPassword.value,
+    })
+    mustChangePwd.value = false
+    router.replace('/')
+  } catch (e: any) {
+    error.value = e?.response?.data?.detail || e?.message || '修改密码失败'
+  } finally {
+    changingPwd.value = false
   }
 }
 
@@ -98,7 +131,7 @@ async function doRegister() {
 
 
       <!-- Login Form -->
-      <form v-if="tab === 'login'" class="auth-form" @submit.prevent="doLogin">
+      <form v-if="tab === 'login' && !mustChangePwd" class="auth-form" @submit.prevent="doLogin">
         <div class="form-group">
           <label class="form-label">邮箱</label>
           <input
@@ -151,6 +184,54 @@ async function doRegister() {
           <Sparkles v-if="!loading" :size="16" />
           <span v-if="loading" class="spinner" />
           {{ loading ? '登录中...' : '登录' }}
+        </button>
+      </form>
+
+      <!-- 强制改密表单 -->
+      <form v-if="mustChangePwd" class="auth-form" @submit.prevent="doChangePassword">
+        <div class="must-change-tip">
+          <LogIn :size="18" />
+          <span>首次登录需要修改密码</span>
+        </div>
+        <div class="form-group">
+          <label class="form-label">新密码</label>
+          <div class="pwd-wrap">
+            <input
+              v-model="newPassword"
+              :type="showNewPwd ? 'text' : 'password'"
+              class="form-input"
+              placeholder="至少 6 位新密码"
+              autocomplete="new-password"
+            />
+            <button type="button" class="pwd-toggle" @click="showNewPwd = !showNewPwd" tabindex="-1">
+              <EyeOff v-if="showNewPwd" :size="16" />
+              <Eye v-else :size="16" />
+            </button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">确认新密码</label>
+          <div class="pwd-wrap">
+            <input
+              v-model="newPasswordConfirm"
+              :type="showNewPwdConfirm ? 'text' : 'password'"
+              class="form-input"
+              placeholder="再次输入新密码"
+              autocomplete="new-password"
+            />
+            <button type="button" class="pwd-toggle" @click="showNewPwdConfirm = !showNewPwdConfirm" tabindex="-1">
+              <EyeOff v-if="showNewPwdConfirm" :size="16" />
+              <Eye v-else :size="16" />
+            </button>
+          </div>
+        </div>
+
+        <p v-if="error" class="error-msg">{{ error }}</p>
+
+        <button type="submit" class="btn-submit" :disabled="changingPwd || !canChangePwd">
+          <Sparkles v-if="!changingPwd" :size="16" />
+          <span v-if="changingPwd" class="spinner" />
+          {{ changingPwd ? '修改中...' : '确认修改' }}
         </button>
       </form>
 
@@ -239,7 +320,10 @@ async function doRegister() {
       </form>
 
       <!-- Footer -->
-      <p class="auth-footer">
+      <p v-if="tab === 'login' && !mustChangePwd" class="auth-footer">
+        忘记密码？请联系管理员重置
+      </p>
+      <p v-if="tab !== 'login' || mustChangePwd" class="auth-footer">
         {{ tab === 'login' ? '还没有账号？' : '已有账号？' }}
         <button type="button" class="link-btn" @click="switchTab(tab === 'login' ? 'register' : 'login')">
           {{ tab === 'login' ? '立即注册' : '去登录' }}
@@ -376,6 +460,19 @@ async function doRegister() {
 .btn-submit:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.must-change-tip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px;
+  background: var(--color-sakura);
+  border-radius: var(--radius-xs);
+  font-size: var(--text-sm);
+  color: var(--color-primary-dark);
+  font-weight: 500;
 }
 
 .error-msg {

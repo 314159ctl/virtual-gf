@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { Search, ChevronLeft, ChevronRight } from 'lucide-vue-next'
+import { Search, ChevronLeft, ChevronRight, KeyRound } from 'lucide-vue-next'
 
 export interface UserItem {
   id: string; email: string; username: string; membership_tier: string
@@ -14,6 +14,7 @@ const props = defineProps<{
   pageSize: number
   loading: boolean
   error: string
+  resettingUserId: string | null
 }>()
 
 const emit = defineEmits<{
@@ -21,6 +22,7 @@ const emit = defineEmits<{
   'update:page': [p: number]
   toggleActive: [user: UserItem]
   setTier: [user: UserItem, tier: string]
+  resetPassword: [user: UserItem]
 }>()
 
 const searchInput = ref('')
@@ -98,6 +100,15 @@ function nextPage() { if (props.page * props.pageSize < props.total) emit('updat
               </button>
               <button class="act-btn" @click="emit('setTier', u, u.membership_tier === 'vip' ? 'free' : 'vip')">
                 {{ u.membership_tier === 'vip' ? '降级' : '升 VIP' }}
+              </button>
+              <button
+                class="act-btn reset-btn"
+                :disabled="resettingUserId === u.id"
+                @click="emit('resetPassword', u)"
+              >
+                <KeyRound v-if="resettingUserId !== u.id" :size="13" />
+                <span v-else class="spinner-sm" />
+                {{ resettingUserId === u.id ? '重置中' : '重置密码' }}
               </button>
             </td>
             <td v-else class="actions-cell">
@@ -286,6 +297,20 @@ function nextPage() { if (props.page * props.pageSize < props.total) emit('updat
   border-color: #dc2626;
   color: #dc2626;
   background: #fef2f2;
+}
+.reset-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.spinner-sm {
+  width: 12px; height: 12px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  display: inline-block;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 .self-tag { color: var(--color-text-muted); font-size: 12px; }
 

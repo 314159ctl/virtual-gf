@@ -1,5 +1,7 @@
 """管理员 API — 仪表盘 + 用户管理"""
 
+import secrets
+import string
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -9,6 +11,7 @@ from sqlalchemy import select, func, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_admin_user
+from app.core.security import hash_password
 from app.db.session import get_db
 from app.models.user import User
 from app.models.message import Message
@@ -167,6 +170,30 @@ async def update_user(
         "is_active": user.is_active,
         "is_admin": user.is_admin,
     }
+
+
+@router.post("/users/{user_id}/reset-password")
+async def reset_user_password(
+    user_id: str,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_admin_user),
+):
+    """重置用户密码，返回临时密码"""
+    result = await db.execute(select(User).where(User.id == uuid.UUID(user_id)))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    if user.id == admin.id:
+        raise HTTPException(status_code=403, detail="不能重置自己的密码")
+
+    alphabet = string.ascii_letters + string.digits
+    temp_password = ''.join(secrets.choice(alphabet) for _ in range(12))
+
+    user.password_hash = hash_password(temp_password)
+    user.must_change_password = True
+    await db.flush()
+
+    return {"temp_password": temp_password, "username": user.username}
 
 
 class SystemSettingsData(BaseModel):
