@@ -32,7 +32,7 @@ const steps = [
   },
   {
     icon: Settings,
-    title: '第二步：把 Key 填进 App',
+    title: '第二步：把 Key 填进网站',
     subtitle: '刚刚复制的那串 sk-xxxxx 就要用在这里了',
     color: '#E8808A',
     items: [
