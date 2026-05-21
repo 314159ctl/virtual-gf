@@ -290,11 +290,23 @@ async function deleteCurrentConv() {
 
 @media (max-width: 768px) {
   .chat-messages {
-    padding: 16px;
-    gap: 12px;
+    padding: 12px 16px;
+    gap: 10px;
   }
   .input-area {
     padding: 0 12px 6px;
+    padding-bottom: max(6px, env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 480px) {
+  .chat-messages {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+  .input-area {
+    padding: 0 8px 4px;
+    padding-bottom: max(4px, env(safe-area-inset-bottom));
   }
 }
 

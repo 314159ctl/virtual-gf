@@ -295,7 +295,26 @@ async function onCreateCharacter(data: { name: string; description: string; syst
     gap: 10px;
   }
   .create-card {
-    min-height: 200px;
+    min-height: 180px;
+  }
+  .home-header {
+    margin-bottom: 16px;
+  }
+  .home-title {
+    font-size: var(--text-lg);
+  }
+}
+
+@media (max-width: 360px) {
+  .home-content {
+    padding: 10px;
+  }
+  .char-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .create-card {
+    min-height: 160px;
   }
 }
 </style>

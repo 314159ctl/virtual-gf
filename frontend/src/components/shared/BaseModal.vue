@@ -79,6 +79,24 @@ defineEmits<{ close: [] }>()
   border-top: 1px solid var(--color-border);
 }
 
+@media (max-width: 480px) {
+  .modal-content {
+    width: 100%;
+    max-width: 96vw;
+    max-height: 90vh;
+    border-radius: var(--radius-md);
+  }
+  .modal-header {
+    padding: 14px 16px;
+  }
+  .modal-body {
+    padding: 16px;
+  }
+  .modal-footer {
+    padding: 12px 16px;
+  }
+}
+
 /* ── Transitions ── */
 .modal-fade-enter-active,
 .modal-fade-leave-active {

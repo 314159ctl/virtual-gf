@@ -1176,4 +1176,20 @@ async function testConnection() {
     flex-wrap: wrap;
   }
 }
+
+@media (max-width: 480px) {
+  .profile-content {
+    padding: 10px 10px;
+    gap: 6px;
+  }
+  .card {
+    padding: 12px;
+  }
+  .profile-card {
+    padding: 16px 12px;
+  }
+  .config-item {
+    min-width: 100%;
+  }
+}
 </style>

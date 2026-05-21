@@ -812,9 +812,9 @@ const expr = computed(() => profile.value.expression_style || {})
 
 .char-count {
   text-align: right;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--color-text-muted);
-  margin-top: -8px;
+  margin-top: 2px;
 }
 
 /* ── Expression style grid ── */
@@ -859,6 +859,8 @@ const expr = computed(() => profile.value.expression_style || {})
   font-weight: 600;
   cursor: pointer;
   transition: all var(--duration-fast) var(--ease-bounce);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .btn:disabled {
   opacity: 0.5;
@@ -1015,6 +1017,47 @@ const expr = computed(() => profile.value.expression_style || {})
 @media (max-width: 768px) {
   .form-row {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .mode-card {
+    padding: 16px 12px;
+  }
+  .mode-icon {
+    width: 44px; height: 44px;
+  }
+  .mode-name {
+    font-size: var(--text-sm);
+  }
+  .mode-desc {
+    font-size: 11px;
+  }
+  .step-content {
+    gap: 10px;
+  }
+  .step-actions {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .step-actions-right {
+    display: flex;
+    gap: 8px;
+  }
+  .step-actions-right .btn {
+    flex: 1;
+    justify-content: center;
+    padding: 9px 12px;
+    font-size: 13px;
+  }
+  .step-actions > .btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .desc-textarea {
+    min-height: 80px;
+    font-size: 14px;
+    padding: 10px 12px;
   }
 }
 

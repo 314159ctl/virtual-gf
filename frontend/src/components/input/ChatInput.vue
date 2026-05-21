@@ -312,6 +312,7 @@ function onKeydown(e: KeyboardEvent) {
 @media (max-width: 768px) {
   .chat-input-area {
     padding: 8px 12px 10px;
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
   }
   .input-row {
     gap: 6px;
@@ -334,6 +335,28 @@ function onKeydown(e: KeyboardEvent) {
   .qa-chip {
     font-size: 10px;
     padding: 3px 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .chat-input-area {
+    padding: 6px 8px 8px;
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+  }
+  .input-row {
+    gap: 4px;
+  }
+  .tool-btn {
+    width: 32px;
+    height: 32px;
+  }
+  .send-btn {
+    width: 36px;
+    height: 36px;
+  }
+  .input-field {
+    font-size: 14px;
+    padding: 8px 10px;
   }
 }
 </style>
